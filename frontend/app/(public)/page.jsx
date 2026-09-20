@@ -6,6 +6,7 @@ import ClassCard from "@/components/public/ClassCard";
 import TeacherCard from "@/components/public/TeacherCard";
 import TestimonialCard from "@/components/public/TestimonialCard";
 import StatsBar from "@/components/public/StatsBar";
+import AdmissionNowButton from "@/components/public/AdmissionNowButton";
 import { getClasses, getTeachers, getTestimonials, getGalleryImages } from "@/lib/api";
 
 export default async function HomePage() {
@@ -141,12 +142,9 @@ export default async function HomePage() {
                 Join our classes and be part of a growing musical community.
               </p>
             </div>
-            <Link
-              href="/admission"
-              className="shrink-0 rounded-full bg-brand-500 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-            >
+            <AdmissionNowButton className="shrink-0 rounded-full bg-brand-500 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 cursor-pointer">
               Admission Now &rarr;
-            </Link>
+            </AdmissionNowButton>
           </div>
         </section>
       </main>

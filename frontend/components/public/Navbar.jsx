@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useAdmission } from "@/context/AdmissionContext";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -11,35 +16,74 @@ const NAV_LINKS = [
 ];
 
 export default function Navbar() {
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { openAdmission } = useAdmission();
+
+  const handleAdmissionClick = () => {
+    let currentClass = null;
+    if (pathname && pathname.startsWith("/classes/")) {
+      const slug = pathname.replace("/classes/", "").split("/")[0];
+      if (slug) {
+        currentClass = slug;
+      }
+    }
+    openAdmission(currentClass ? { selectedClass: currentClass } : null);
+  };
+
   return (
-    <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 backdrop-blur">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+    <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur-md">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl text-brand-500">&#9835;</span>
-          <span className="text-lg font-bold text-dark">
-            Harmony Music School
-          </span>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <svg
+            className="h-7 w-7 text-[#E11D48] fill-current shrink-0 transition-transform group-hover:scale-105"
+            viewBox="0 0 24 24"
+          >
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+          </svg>
+          <div className="flex flex-col">
+            <span className="font-serif text-lg sm:text-[19px] font-bold text-gray-900 leading-tight">
+              Harmony Music School
+            </span>
+            <span className="text-[11px] text-gray-400 font-normal tracking-wide leading-tight mt-0.5">
+              Learn &middot; Play &middot; Grow
+            </span>
+          </div>
         </Link>
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-7 md:flex">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-gray-700 transition-colors hover:text-brand-500"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname?.startsWith(link.href);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative py-1 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "text-[#E11D48] font-semibold"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {link.label}
+                {isActive && (
+                  <span className="absolute -bottom-1.5 left-0 right-0 h-[2.5px] rounded-full bg-[#E11D48]" />
+                )}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Right actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
           <button
             aria-label="Search"
-            className="hidden rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 md:block"
+            className="text-gray-700 transition-colors hover:text-gray-900 p-1"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -52,37 +96,90 @@ export default function Navbar() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeWidth={2}
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
           </button>
+
           <button
-            aria-label="Cart"
-            className="relative rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
-              />
-            </svg>
-          </button>
-          <Link
-            href="/admission"
-            className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+            type="button"
+            onClick={handleAdmissionClick}
+            className="rounded-full bg-[#E11D48] px-6 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md cursor-pointer"
           >
             Admission
-          </Link>
+          </button>
+
+          {/* Mobile menu trigger */}
+          <button
+            aria-label="Toggle menu"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 md:hidden"
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {mobileMenuOpen ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              )}
+            </svg>
+          </button>
         </div>
       </nav>
+
+      {/* Mobile nav dropdown */}
+      {mobileMenuOpen && (
+        <div className="border-t border-gray-100 bg-white px-5 py-4 md:hidden">
+          <div className="flex flex-col space-y-3">
+            {NAV_LINKS.map((link) => {
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname?.startsWith(link.href);
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm py-1.5 ${
+                    isActive
+                      ? "font-bold text-[#D8006E]"
+                      : "font-medium text-gray-700"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleAdmissionClick();
+              }}
+              className="mt-2 w-full rounded-full bg-[#E11D48] py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#D81B60]"
+            >
+              Admission
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

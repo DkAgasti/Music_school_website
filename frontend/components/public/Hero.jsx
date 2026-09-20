@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import FloatingNotes from "./FloatingNotes";
+import { useAdmission } from "@/context/AdmissionContext";
 
 export default function Hero() {
+  const { openAdmission } = useAdmission();
+
   return (
     <section className="relative min-h-[670px] overflow-hidden bg-[#fdf2f8]">
       <FloatingNotes />
@@ -29,12 +34,13 @@ export default function Hero() {
 
           {/* CTAs */}
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link
-              href="/admission"
-              className="rounded-full bg-brand-500 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+            <button
+              type="button"
+              onClick={() => openAdmission()}
+              className="rounded-full bg-brand-500 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 cursor-pointer"
             >
               Join Admission
-            </Link>
+            </button>
 
             <Link
               href="/classes"
