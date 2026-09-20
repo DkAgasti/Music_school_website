@@ -3,7 +3,8 @@ import * as mock from "./mockData";
 
 // ─── Low-level fetch helper (used by admin / auth calls) ────────────
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
 
 async function request(path, { method = "GET", body, auth = false } = {}) {
   const headers = { "Content-Type": "application/json" };

@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-router.get("/", requireAuth, listTestimonials);
+router.get("/", listTestimonials);
 router.post("/", requireAuth, createTestimonial);
 router.patch("/:id", requireAuth, updateTestimonial);
 router.delete("/:id", requireAuth, deleteTestimonial);

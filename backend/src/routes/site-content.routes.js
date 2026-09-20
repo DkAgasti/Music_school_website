@@ -7,7 +7,7 @@ import {
 
 const router = Router();
 
-router.get("/", requireAuth, listSiteContent);
+router.get("/", listSiteContent);
 router.post("/", requireAuth, upsertSiteContent);
 
 export default router;

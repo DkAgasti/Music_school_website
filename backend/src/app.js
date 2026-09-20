@@ -18,6 +18,7 @@ import shopRoutes from "./routes/shop.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import cronRoutes from "./routes/cron.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -49,6 +50,7 @@ app.use("/api/enquiries", enquiryRoutes);
 app.use("/api/shop", shopRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/cron", cronRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use(errorHandler);
 

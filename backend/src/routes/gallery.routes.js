@@ -8,7 +8,7 @@ import {
 
 const router = Router();
 
-router.get("/", requireAuth, listGalleryImages);
+router.get("/", listGalleryImages);
 router.post("/", requireAuth, uploadGalleryImage);
 router.delete("/:id", requireAuth, deleteGalleryImage);
 

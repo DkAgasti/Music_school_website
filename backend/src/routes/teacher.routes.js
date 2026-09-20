@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-router.get("/", requireAuth, listTeachers);
+router.get("/", listTeachers);
 router.post("/", requireAuth, createTeacher);
 router.patch("/:id", requireAuth, updateTeacher);
 router.delete("/:id", requireAuth, deleteTeacher);
