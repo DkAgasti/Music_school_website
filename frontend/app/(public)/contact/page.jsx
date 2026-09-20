@@ -34,7 +34,7 @@ export default function ContactPage() {
         {/* ── 1. Hero Banner Section ───────────────────────────── */}
         <section className="relative w-full overflow-hidden bg-white pt-0 pb-0">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
-            <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8 min-h-[190px] sm:min-h-[210px] md:min-h-[230px]">
+            <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8 md:min-h-[230px]">
               {/* Left text column */}
               <div className="md:col-span-7 lg:col-span-6 py-6 sm:py-8 z-10">
                 <h1 className="font-serif text-3xl sm:text-4xl lg:text-[44px] font-bold tracking-tight text-gray-900 leading-tight">
@@ -50,8 +50,8 @@ export default function ContactPage() {
             </div>
           </div>
 
-          {/* Right gradient glow flush to right edge */}
-          <div className="md:absolute md:top-0 md:bottom-0 md:right-0 w-full md:w-[50%] lg:w-[48%] xl:w-[46%] h-[160px] sm:h-[180px] md:h-full overflow-hidden px-4 sm:px-6 md:px-0">
+          {/* Right gradient glow flush to right edge (decorative, tablet/desktop only) */}
+          <div className="hidden md:block md:absolute md:top-0 md:bottom-0 md:right-0 md:w-[50%] lg:w-[48%] xl:w-[46%] md:h-full overflow-hidden">
             <div className="relative h-full w-full overflow-hidden">
               <img
                 src="/images/contact/hero-glow.png"

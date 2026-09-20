@@ -81,31 +81,20 @@ export default function Navbar() {
 
         {/* Right actions */}
         <div className="flex items-center gap-5">
-          <button
-            aria-label="Search"
-            className="text-gray-700 transition-colors hover:text-gray-900 p-1"
+          <Link
+            href="/student-login"
+            className="hidden items-center gap-1.5 rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-[#E11D48] hover:text-[#E11D48] sm:flex sm:text-sm"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-          </button>
+            Student
+          </Link>
 
           <button
             type="button"
             onClick={handleAdmissionClick}
-            className="rounded-full bg-[#E11D48] px-6 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md cursor-pointer"
+            className="hidden rounded-full bg-[#E11D48] px-6 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md cursor-pointer md:inline-flex md:text-sm"
           >
             Admission
           </button>
@@ -167,13 +156,20 @@ export default function Navbar() {
                 </Link>
               );
             })}
+            <Link
+              href="/student-login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="mt-1 w-full rounded-full border border-gray-300 py-2.5 text-center text-sm font-semibold text-gray-700 hover:border-[#E11D48] hover:text-[#E11D48]"
+            >
+              Student Login
+            </Link>
             <button
               type="button"
               onClick={() => {
                 setMobileMenuOpen(false);
                 handleAdmissionClick();
               }}
-              className="mt-2 w-full rounded-full bg-[#E11D48] py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#D81B60]"
+              className="w-full rounded-full bg-[#E11D48] py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#D81B60]"
             >
               Admission
             </button>

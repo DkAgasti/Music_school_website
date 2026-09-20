@@ -14,11 +14,11 @@ export default async function ClassesPage() {
       <main className="min-h-screen">
         {/* ── Hero Banner Section ───────────────────────────── */}
         <section className="relative w-full overflow-hidden bg-white pt-0 pb-0">
-          {/* Constrained container for text */}
-          <div className="mx-auto max-w-6xl px-5 sm:px-6">
-            <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8 min-h-[220px] sm:min-h-[250px] md:min-h-[270px] lg:min-h-[285px]">
+          {/* Constrained container for text (tablet/desktop only) */}
+          <div className="hidden md:block mx-auto max-w-6xl px-5 sm:px-6">
+            <div className="grid items-center gap-2 md:grid-cols-12 md:gap-8 md:min-h-[270px] lg:min-h-[285px]">
               {/* Left text column */}
-              <div className="md:col-span-7 lg:col-span-6 py-6 sm:py-8 z-10">
+              <div className="md:col-span-7 lg:col-span-6 z-10">
                 <h1 className="font-serif text-3xl sm:text-4xl lg:text-[44px] font-bold tracking-tight text-gray-900 leading-tight">
                   Music Classes / Courses
                 </h1>
@@ -32,9 +32,9 @@ export default async function ClassesPage() {
             </div>
           </div>
 
-          {/* Right image: flush to top, bottom, and right edge of screen */}
-          <div className="md:absolute md:top-0 md:bottom-0 md:right-0 w-full md:w-[50%] lg:w-[48%] xl:w-[46%] h-[220px] sm:h-[250px] md:h-full overflow-hidden px-4 sm:px-6 md:px-0">
-            <div className="relative h-full w-full overflow-hidden rounded-2xl md:rounded-none">
+          {/* Right image: flush to top, bottom, and right edge of screen (tablet/desktop). */}
+          <div className="hidden md:block md:absolute md:top-0 md:bottom-0 md:right-0 md:w-[50%] lg:w-[48%] xl:w-[46%] md:h-full overflow-hidden">
+            <div className="relative h-full w-full overflow-hidden">
               <img
                 src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893103/Tabla.png"
                 alt="Indian Classical Instruments - Tabla and Harmonium"
@@ -42,6 +42,24 @@ export default async function ClassesPage() {
               />
               {/* Soft gradient fade on the left to smoothly blend into page background */}
               <div className="pointer-events-none absolute inset-y-0 left-0 w-2/5 sm:w-1/3 bg-gradient-to-r from-white via-white/80 to-transparent" />
+            </div>
+          </div>
+
+          {/* Mobile: full-width image with text overlaid directly on it */}
+          <div className="md:hidden relative h-[260px] sm:h-[300px] w-full overflow-hidden">
+            <img
+              src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893103/Tabla.png"
+              alt="Indian Classical Instruments - Tabla and Harmonium"
+              className="absolute inset-0 h-full w-full object-cover object-[right_center]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 px-5 pb-5 sm:px-8 sm:pb-6">
+              <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                Music Classes / Courses
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-white/90 max-w-md">
+                Discover the right course for your musical journey.
+              </p>
             </div>
           </div>
         </section>

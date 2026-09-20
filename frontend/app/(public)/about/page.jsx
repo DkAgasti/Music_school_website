@@ -15,11 +15,11 @@ export default function AboutPage() {
       <main className="flex-1">
         {/* ── 1. Hero / Intro Section ────────────────────────────────────────── */}
         <section className="relative w-full overflow-hidden bg-white pt-0 pb-8 sm:pb-10 md:pb-12">
-          {/* Constrained container for text */}
-          <div className="mx-auto max-w-6xl px-5 sm:px-6">
-            <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8 min-h-[260px] sm:min-h-[280px] md:min-h-[290px] lg:min-h-[305px]">
+          {/* Constrained container for text (tablet/desktop only) */}
+          <div className="hidden md:block mx-auto max-w-6xl px-5 sm:px-6">
+            <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8 md:min-h-[290px] lg:min-h-[305px]">
               {/* Left text column */}
-              <div className="md:col-span-6 lg:col-span-5 pt-6 pb-4 sm:pt-8 sm:pb-6 md:py-8 z-10">
+              <div className="md:col-span-6 lg:col-span-5 md:py-8 z-10">
                 <h1 className="font-serif text-3xl sm:text-4xl lg:text-[44px] font-bold tracking-tight text-gray-900 leading-tight">
                   About Us
                 </h1>
@@ -39,9 +39,9 @@ export default function AboutPage() {
             </div>
           </div>
 
-          {/* Right image: completely flush to top navbar (top-0) and right edge of screen (right-0), visibly shorter height */}
-          <div className="md:absolute md:top-0 md:right-0 w-full md:w-[50%] lg:w-[48%] xl:w-[46%] h-[230px] sm:h-[260px] md:h-[285px] lg:h-[300px] overflow-hidden px-4 sm:px-6 md:px-0">
-            <div className="relative h-full w-full overflow-hidden rounded-2xl md:rounded-none md:rounded-bl-[40px]">
+          {/* Right image: completely flush to top navbar (top-0) and right edge of screen (right-0), visibly shorter height (tablet/desktop only) */}
+          <div className="hidden md:block md:absolute md:top-0 md:right-0 md:w-[50%] lg:w-[48%] xl:w-[46%] md:h-[285px] lg:h-[300px] overflow-hidden">
+            <div className="relative h-full w-full overflow-hidden md:rounded-bl-[40px]">
               <img
                 src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893089/ChatGPT_Image_Sep_14_2026_01_06_58_PM.png"
                 alt="Student playing acoustic guitar at Harmony Music School"
@@ -49,6 +49,28 @@ export default function AboutPage() {
               />
               {/* Soft gradient fade on the left to smoothly blend into page background */}
               <div className="pointer-events-none absolute inset-y-0 left-0 w-2/5 sm:w-1/3 bg-gradient-to-r from-white via-white/80 to-transparent" />
+            </div>
+          </div>
+
+          {/* Mobile: full-width image with text overlaid directly on it */}
+          <div className="md:hidden relative h-[280px] sm:h-[320px] w-full overflow-hidden">
+            <img
+              src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893089/ChatGPT_Image_Sep_14_2026_01_06_58_PM.png"
+              alt="Student playing acoustic guitar at Harmony Music School"
+              className="absolute inset-0 h-full w-full object-cover object-[72%_center]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 px-5 pb-5 sm:px-8 sm:pb-6">
+              <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                About Us
+              </h1>
+              <h2 className="font-serif text-lg sm:text-xl font-bold text-white/95 mt-1.5">
+                More Than Just Music
+              </h2>
+              <p className="mt-2 text-xs sm:text-sm leading-relaxed text-white/90 max-w-md">
+                At Harmony Music School, we believe in the power of music to
+                inspire, build confidence, and create a lifelong passion.
+              </p>
             </div>
           </div>
         </section>
@@ -138,11 +160,11 @@ export default function AboutPage() {
                   />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xl sm:text-2xl font-bold text-gray-900">
                   10+
                 </div>
-                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
                   Years of Excellence
                 </div>
               </div>
@@ -164,11 +186,11 @@ export default function AboutPage() {
                   />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xl sm:text-2xl font-bold text-gray-900">
                   500+
                 </div>
-                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
                   Happy Students
                 </div>
               </div>
@@ -190,11 +212,11 @@ export default function AboutPage() {
                   />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xl sm:text-2xl font-bold text-gray-900">
                   20+
                 </div>
-                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
                   Expert Teachers
                 </div>
               </div>
@@ -215,11 +237,11 @@ export default function AboutPage() {
                   <circle cx="12" cy="12" r="1.5" fill="currentColor" />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xl sm:text-2xl font-bold text-gray-900">
                   100%
                 </div>
-                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                <div className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
                   Student Satisfaction
                 </div>
               </div>

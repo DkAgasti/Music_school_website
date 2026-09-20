@@ -67,6 +67,49 @@ export async function getProductBySlug(slug) {
   return mock.products.find((p) => p.slug === slug) ?? null;
 }
 
+export async function getStudentDashboard() {
+  // TODO: replace with → request("/students/me/dashboard", { auth: true })
+  return mock.studentDashboard;
+}
+
+export async function getStudentProfile() {
+  // TODO: replace with → request("/students/me", { auth: true })
+  return mock.studentProfile;
+}
+
+export async function getStudentClasses() {
+  // TODO: replace with → request("/students/me/classes", { auth: true })
+  return mock.studentDashboard.enrolledClasses;
+}
+
+export async function getStudentAttendance() {
+  // TODO: replace with → request("/students/me/attendance", { auth: true })
+  return mock.studentAttendance;
+}
+
+export async function getStudentProgress() {
+  // TODO: replace with → request("/students/me/progress", { auth: true })
+  return mock.studentProgress;
+}
+
+export async function getStudentPayments() {
+  // TODO: replace with → request("/students/me/payments", { auth: true })
+  return mock.studentPayments;
+}
+
+export async function getStudentAdmissions() {
+  // TODO: replace with → request("/students/me/admissions", { auth: true })
+  return mock.studentAdmissions;
+}
+
+export async function loginStudent({ email, password }) {
+  // TODO: replace with → request("/auth/student-login", { method: "POST", body: { email, password } })
+  if (!password || email?.trim().toLowerCase() !== mock.studentProfile.email.toLowerCase()) {
+    throw new Error("Invalid email or password");
+  }
+  return { token: "mock-student-token" };
+}
+
 export async function submitEnquiry(data) {
   // TODO: replace with → request("/enquiries", { method: "POST", body: data })
   console.log("[mock] submitEnquiry", data);

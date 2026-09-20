@@ -82,23 +82,41 @@ export default async function ClassDetailPage({ params }) {
       <Navbar />
 
       {/* Hero Banner Section */}
-      <section className="relative w-full border-b border-gray-100 bg-white overflow-hidden h-[180px] sm:h-[200px] md:h-[220px]">
-        {/* Banner graphic positioned flush right and full-height */}
-        <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-1/2 md:w-3/5 lg:w-1/2 overflow-hidden pointer-events-none flex justify-end">
+      <section className="relative w-full border-b border-gray-100 bg-white overflow-hidden md:h-[220px]">
+        {/* Banner graphic: absolute, flush right and full-height on tablet/desktop only */}
+        <div className="hidden md:block absolute right-0 top-0 bottom-0 md:w-3/5 lg:w-1/2 overflow-hidden pointer-events-none">
           <img
             src={heroImage}
             alt={classTitle}
-            className="h-full w-auto object-cover object-left"
+            className="h-full w-full object-cover object-right"
           />
         </div>
 
-        {/* Text Container aligned with max-w-6xl */}
-        <div className="mx-auto flex h-full max-w-6xl items-center px-5 sm:px-8 relative z-10">
+        {/* Text Container aligned with max-w-6xl (tablet/desktop only) */}
+        <div className="hidden md:flex mx-auto h-full max-w-6xl items-center px-5 sm:px-8 relative z-10">
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl lg:text-[46px] font-bold tracking-tight text-gray-950">
               {classTitle}
             </h1>
             <p className="mt-2 text-sm sm:text-base text-gray-600 font-normal">
+              {classTagline}
+            </p>
+          </div>
+        </div>
+
+        {/* Mobile: full-width image with text overlaid directly on it */}
+        <div className="md:hidden relative h-[260px] sm:h-[300px] w-full overflow-hidden">
+          <img
+            src={heroImage}
+            alt={classTitle}
+            className="absolute inset-0 h-full w-full object-cover object-right"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 px-5 pb-5 sm:px-8 sm:pb-6">
+            <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              {classTitle}
+            </h1>
+            <p className="mt-1.5 text-sm sm:text-base text-white/90">
               {classTagline}
             </p>
           </div>
