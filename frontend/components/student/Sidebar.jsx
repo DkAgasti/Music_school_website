@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearStudentToken } from "@/lib/studentAuth";
+import { clearMyProfileCache } from "@/Api/student/studentApi";
 
 const ICONS = {
   home: (
@@ -64,6 +65,7 @@ export default function StudentSidebar({ isOpen = false, onClose }) {
 
   function handleLogout() {
     clearStudentToken();
+    clearMyProfileCache();
     router.push("/student-login");
   }
 

@@ -1,153 +1,172 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import {
+  apiGetProducts,
+  apiCreateProduct,
+  apiUpdateProduct,
+  apiDeleteProduct,
+} from "@/Api/admin/shopProductApi";
+import { apiUploadImage } from "@/Api/admin/uploadApi";
+import Pagination from "@/components/admin/Pagination";
 
-const DEFAULT_PRODUCTS = [
-  { id: "p-1", title: "Acoustic Guitar", category: "Instruments", price: "₹12,000", stock: 8, status: "In Stock" },
-  { id: "p-2", title: "Digital Piano", category: "Instruments", price: "₹25,000", stock: 3, status: "Low Stock" },
-  { id: "p-3", title: "Tabla Set", category: "Instruments", price: "₹8,000", stock: 5, status: "In Stock" },
-  { id: "p-4", title: "Guitar Book – Level 1", category: "Books", price: "₹499", stock: 22, status: "In Stock" },
-  { id: "p-5", title: "Piano Book – Level 1", category: "Books", price: "₹599", stock: 0, status: "Out of Stock" },
-  { id: "p-6", title: "Violin", category: "Instruments", price: "₹9,500", stock: 4, status: "In Stock" },
-];
+const PAGE_SIZE = 20;
+
+function formatRupees(pricePaise) {
+  const rupees = Math.round((pricePaise || 0) / 100);
+  return `₹${rupees.toLocaleString("en-IN")}`;
+}
+
+function getStockStatus(stock) {
+  if (!stock || stock <= 0) return "Out of Stock";
+  if (stock <= 2) return "Low Stock";
+  return "In Stock";
+}
 
 export default function ProductsAdminPage() {
-  const [products, setProducts] = useState(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
   const [form, setForm] = useState({
-    title: "",
+    name: "",
     category: "Instruments",
     price: "",
+    deliveryCharge: "",
     stock: 10,
+    imageUrl: "",
   });
 
   const [editForm, setEditForm] = useState({
-    title: "",
+    name: "",
     category: "Instruments",
     price: "",
+    deliveryCharge: "",
     stock: 10,
-    status: "In Stock",
+    active: "Active",
+    imageUrl: "",
   });
 
-  useEffect(() => {
-    async function loadProducts() {
-      try {
-        const res = await api.get("/shop/products");
-        if (res && Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((item) => {
-            const stockVal = item.stock ?? 10;
-            return {
-              id: item.id,
-              title: item.title || item.name,
-              category: item.category || "Instruments",
-              price: `₹${(item.price ? Math.round(item.price / 100) : 1000).toLocaleString("en-IN")}`,
-              stock: stockVal,
-              status: stockVal === 0 ? "Out of Stock" : stockVal < 4 ? "Low Stock" : "In Stock",
-            };
-          });
-          setProducts(mapped);
-        }
-      } catch (err) {
-        console.warn("Using template products:", err.message);
-      }
-    }
-    loadProducts();
-  }, []);
+  const [uploadingAdd, setUploadingAdd] = useState(false);
+  const [uploadingEdit, setUploadingEdit] = useState(false);
 
-  function handleAddProduct(e) {
+  async function handlePhotoFileChange(e, target) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const setUploading = target === "add" ? setUploadingAdd : setUploadingEdit;
+    const setFormState = target === "add" ? setForm : setEditForm;
+
+    setUploading(true);
+    const url = await apiUploadImage(file, "products");
+    setUploading(false);
+
+    if (url) setFormState((prev) => ({ ...prev, imageUrl: url }));
+  }
+
+  useEffect(() => {
+    loadProducts(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  async function loadProducts(pageToLoad) {
+    setLoading(true);
+    const res = await apiGetProducts({ page: pageToLoad, limit: PAGE_SIZE });
+    if (res && Array.isArray(res.items)) {
+      setProducts(res.items);
+      setTotalPages(res.totalPages);
+      setTotalProducts(res.total);
+    }
+    setLoading(false);
+  }
+
+  async function handleAddProduct(e) {
     e.preventDefault();
     const stockNum = parseInt(form.stock, 10) || 0;
-    const newEntry = {
-      id: `p-${Date.now()}`,
-      title: form.title,
+    const priceNum = Number(String(form.price).replace(/[^0-9.]/g, "")) || 0;
+    const deliveryChargeNum = Number(String(form.deliveryCharge).replace(/[^0-9.]/g, "")) || 0;
+    const created = await apiCreateProduct({
+      name: form.name,
       category: form.category,
-      price: form.price.startsWith("₹") ? form.price : `₹${form.price}`,
+      price: priceNum,
+      deliveryCharge: deliveryChargeNum,
       stock: stockNum,
-      status: stockNum === 0 ? "Out of Stock" : stockNum < 4 ? "Low Stock" : "In Stock",
-    };
-    // Prepend new product to top
-    setProducts([newEntry, ...products]);
-    setShowModal(false);
-    setForm({ title: "", category: "Instruments", price: "", stock: 10 });
+      imageUrls: form.imageUrl ? [form.imageUrl] : [],
+    });
+    if (created) {
+      setShowModal(false);
+      setForm({ name: "", category: "Instruments", price: "", deliveryCharge: "", stock: 10, imageUrl: "" });
+      setPage(1);
+      loadProducts(1);
+    }
   }
 
   function handleOpenEdit(product) {
     setEditingProduct(product);
     setEditForm({
-      title: product.title,
-      category: product.category,
-      price: product.price.replace("₹", "").trim(),
-      stock: product.stock,
-      status: product.status,
+      name: product.name || "",
+      category: product.category || "Instruments",
+      price: String(Math.round((product.price || 0) / 100)),
+      deliveryCharge: String(Math.round((product.deliveryCharge || 0) / 100)),
+      stock: product.stock ?? 0,
+      active: product.active === false ? "Inactive" : "Active",
+      imageUrl:
+        Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+          ? product.imageUrls[0]
+          : "",
     });
   }
 
-  function handleSaveEdit(e) {
+  async function handleSaveEdit(e) {
     e.preventDefault();
     if (!editingProduct) return;
     const stockNum = parseInt(editForm.stock, 10) || 0;
-    const cleanPrice = editForm.price.startsWith("₹") ? editForm.price : `₹${editForm.price}`;
-
-    setProducts((prev) =>
-      prev.map((item) =>
-        item.id === editingProduct.id
-          ? {
-              ...item,
-              title: editForm.title,
-              category: editForm.category,
-              price: cleanPrice,
-              stock: stockNum,
-              status: editForm.status,
-            }
-          : item
-      )
-    );
-    setEditingProduct(null);
+    const priceNum = Number(String(editForm.price).replace(/[^0-9.]/g, "")) || 0;
+    const deliveryChargeNum = Number(String(editForm.deliveryCharge).replace(/[^0-9.]/g, "")) || 0;
+    const updated = await apiUpdateProduct(editingProduct.id, {
+      name: editForm.name,
+      category: editForm.category,
+      price: priceNum,
+      deliveryCharge: deliveryChargeNum,
+      stock: stockNum,
+      active: editForm.active === "Active",
+      imageUrls: editForm.imageUrl ? [editForm.imageUrl] : [],
+    });
+    if (updated) {
+      setEditingProduct(null);
+      loadProducts(page);
+    }
   }
 
-  function handleDeleteProduct(id, title) {
-    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
-    setProducts((prev) => prev.filter((item) => item.id !== id));
-  }
-
-  function handleToggleStockStatus(id) {
-    setProducts((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const next =
-            item.status === "In Stock"
-              ? "Low Stock"
-              : item.status === "Low Stock"
-              ? "Out of Stock"
-              : "In Stock";
-          const newStock = next === "Out of Stock" ? 0 : next === "Low Stock" ? 2 : 10;
-          return { ...item, status: next, stock: newStock };
-        }
-        return item;
-      })
-    );
+  async function handleDeleteProduct(id, name) {
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+    const ok = await apiDeleteProduct(id);
+    if (ok) {
+      loadProducts(page);
+    }
   }
 
   function renderStockBadge(status) {
     if (status === "In Stock") {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-[#E8F8EE] px-3.5 py-0.5 text-xs font-medium text-[#16A34A]">
+        <span className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-[#E8F8EE] px-3.5 py-0.5 text-xs font-medium text-[#16A34A]">
           In Stock
         </span>
       );
     }
     if (status === "Low Stock") {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-[#FEF3E2] px-3.5 py-0.5 text-xs font-medium text-[#D97706]">
+        <span className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-[#FEF3E2] px-3.5 py-0.5 text-xs font-medium text-[#D97706]">
           Low Stock
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-[#FFE4E6] px-3.5 py-0.5 text-xs font-medium text-[#E11D48]">
+      <span className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-[#FFE4E6] px-3.5 py-0.5 text-xs font-medium text-[#E11D48]">
         Out of Stock
       </span>
     );
@@ -180,7 +199,7 @@ export default function ProductsAdminPage() {
             Product Inventory
           </h2>
           <span className="text-xs text-gray-400 font-medium">
-            {products.length} Products
+            {totalProducts} Products
           </span>
         </div>
 
@@ -197,61 +216,79 @@ export default function ProductsAdminPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9EBF2] text-sm">
-              {products.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-gray-400">
+                    Loading products...
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-xs text-gray-400">
                     No products in inventory.
                   </td>
                 </tr>
               ) : (
-                products.map((row) => (
-                  <tr key={row.id} className="hover:bg-[#FFF7FB]/80 transition-colors">
-                    <td className="px-4 py-3.5 font-medium text-gray-800">
-                      {row.title}
-                    </td>
-                    <td className="px-4 py-3.5 text-gray-600">{row.category}</td>
-                    <td className="px-4 py-3.5 font-bold text-gray-900">{row.price}</td>
-                    <td className="px-4 py-3.5 text-gray-600 font-mono text-xs">{row.stock} units</td>
-                    <td className="px-4 py-3.5 text-center">
-                      <button
-                        onClick={() => handleToggleStockStatus(row.id)}
-                        title="Click to toggle stock status"
-                        className="cursor-pointer transition-transform hover:scale-105"
-                      >
-                        {renderStockBadge(row.status)}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
-                        {/* 1. Edit Icon */}
-                        <button
-                          onClick={() => handleOpenEdit(row)}
-                          title="Edit Product"
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FDEEF5] transition-colors cursor-pointer"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
+                products.map((row) => {
+                  const status = getStockStatus(row.stock);
+                  return (
+                    <tr key={row.id} className="hover:bg-[#FFF7FB]/80 transition-colors">
+                      <td className="px-4 py-3.5 font-medium text-gray-800">
+                        <div className="flex items-center gap-2.5">
+                          {row.imageUrls?.[0] ? (
+                            <img
+                              src={row.imageUrls[0]}
+                              alt={row.name}
+                              className="h-9 w-9 shrink-0 rounded-lg object-cover border border-[#F3E2EC]"
+                            />
+                          ) : (
+                            <div className="h-9 w-9 shrink-0 rounded-lg bg-[#FDEEF5] flex items-center justify-center text-[#E11D48] text-xs font-bold border border-[#F3E2EC]">
+                              ♪
+                            </div>
+                          )}
+                          {row.name}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-gray-600">{row.category}</td>
+                      <td className="px-4 py-3.5 font-bold text-gray-900">{formatRupees(row.price)}</td>
+                      <td className="px-4 py-3.5 text-gray-600 font-mono text-xs whitespace-nowrap">{row.stock} units</td>
+                      <td className="px-4 py-3.5 text-center">
+                        {renderStockBadge(status)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          {/* 1. Edit Icon */}
+                          <button
+                            onClick={() => handleOpenEdit(row)}
+                            title="Edit Product"
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FDEEF5] transition-colors cursor-pointer"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
 
-                        {/* 2. Delete Icon */}
-                        <button
-                          onClick={() => handleDeleteProduct(row.id, row.title)}
-                          title="Delete Product"
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FFE4E6] transition-colors cursor-pointer"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {/* 2. Delete Icon */}
+                          <button
+                            onClick={() => handleDeleteProduct(row.id, row.name)}
+                            title="Delete Product"
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FFE4E6] transition-colors cursor-pointer"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       {/* Add Product Modal */}
@@ -269,8 +306,8 @@ export default function ProductsAdminPage() {
                 <input
                   required
                   type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="e.g. Classic Acoustic Guitar"
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
@@ -314,6 +351,49 @@ export default function ProductsAdminPage() {
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Delivery Charges (₹)
+                </label>
+                <input
+                  type="text"
+                  value={form.deliveryCharge}
+                  onChange={(e) => setForm({ ...form, deliveryCharge: e.target.value })}
+                  placeholder="0 = Free delivery"
+                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Photo</label>
+                <div className="flex items-center gap-3">
+                  {form.imageUrl ? (
+                    <img
+                      src={form.imageUrl}
+                      alt="Preview"
+                      className="h-12 w-12 rounded-lg object-cover border border-[#F3E2EC]"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-gray-100 shrink-0" />
+                  )}
+                  <label className="flex-1 cursor-pointer rounded-xl border border-dashed border-[#F3E2EC] px-3.5 py-2 text-xs text-gray-500 hover:border-[#E11D48] hover:text-[#E11D48] transition-colors text-center">
+                    {uploadingAdd ? "Uploading…" : form.imageUrl ? "Change photo" : "Upload photo from your computer"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handlePhotoFileChange(e, "add")}
+                      disabled={uploadingAdd}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                  placeholder="or paste an image URL"
+                  className="mt-2 w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-xs text-gray-600 focus:outline-none focus:border-[#E11D48]"
+                />
+              </div>
               <div className="flex items-center justify-end gap-3 pt-3">
                 <button
                   type="button"
@@ -349,8 +429,8 @@ export default function ProductsAdminPage() {
                 <input
                   required
                   type="text"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>
@@ -371,16 +451,15 @@ export default function ProductsAdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Status
+                    Active
                   </label>
                   <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    value={editForm.active}
+                    onChange={(e) => setEditForm({ ...editForm, active: e.target.value })}
                     className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
                   >
-                    <option value="In Stock">In Stock</option>
-                    <option value="Low Stock">Low Stock</option>
-                    <option value="Out of Stock">Out of Stock</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>
@@ -409,6 +488,49 @@ export default function ProductsAdminPage() {
                     className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Delivery Charges (₹)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.deliveryCharge}
+                  onChange={(e) => setEditForm({ ...editForm, deliveryCharge: e.target.value })}
+                  placeholder="0 = Free delivery"
+                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Photo</label>
+                <div className="flex items-center gap-3">
+                  {editForm.imageUrl ? (
+                    <img
+                      src={editForm.imageUrl}
+                      alt="Preview"
+                      className="h-12 w-12 rounded-lg object-cover border border-[#F3E2EC]"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-gray-100 shrink-0" />
+                  )}
+                  <label className="flex-1 cursor-pointer rounded-xl border border-dashed border-[#F3E2EC] px-3.5 py-2 text-xs text-gray-500 hover:border-[#E11D48] hover:text-[#E11D48] transition-colors text-center">
+                    {uploadingEdit ? "Uploading…" : editForm.imageUrl ? "Change photo" : "Upload photo from your computer"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handlePhotoFileChange(e, "edit")}
+                      disabled={uploadingEdit}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={editForm.imageUrl}
+                  onChange={(e) => setEditForm({ ...editForm, imageUrl: e.target.value })}
+                  placeholder="or paste an image URL"
+                  className="mt-2 w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-xs text-gray-600 focus:outline-none focus:border-[#E11D48]"
+                />
               </div>
               <div className="flex items-center justify-end gap-3 pt-3">
                 <button

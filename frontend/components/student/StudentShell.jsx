@@ -21,7 +21,7 @@ export default function StudentShell({ children }) {
       )}
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-pink-100/70 bg-white px-4 py-4 lg:hidden">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-pink-100/70 bg-white px-4 py-4 lg:hidden">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}

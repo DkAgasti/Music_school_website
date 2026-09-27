@@ -37,7 +37,7 @@ export default function AdminLayout({ children }) {
                 </svg>
               </div>
               <span className="font-serif text-sm font-bold text-gray-900">
-                Harmony Music
+                Synchrocity Music
               </span>
             </div>
 

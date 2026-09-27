@@ -3,19 +3,29 @@ import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import Hero from "@/components/public/Hero";
 import ClassCard from "@/components/public/ClassCard";
-import TeacherCard from "@/components/public/TeacherCard";
-import TestimonialCard from "@/components/public/TestimonialCard";
+import HomeTeachersGrid from "@/components/public/HomeTeachersGrid";
+import GoogleReviews, { GoogleBusinessCard } from "@/components/public/GoogleReviews";
 import StatsBar from "@/components/public/StatsBar";
 import AdmissionNowButton from "@/components/public/AdmissionNowButton";
-import { getClasses, getTeachers, getTestimonials, getGalleryImages } from "@/lib/api";
+import { apiGetClasses } from "@/Api/public/classApi";
+import { apiGetTeachers } from "@/Api/public/teacherApi";
+import { apiGetGalleryImages } from "@/Api/public/galleryApi";
+
+export const metadata = {
+  description:
+    "Synchrocity Music School offers expert-led guitar, piano, vocals, violin, drums and tabla classes for all ages. Book a free trial class today.",
+};
 
 export default async function HomePage() {
-  const [classes, teachers, testimonials, galleryImages] = await Promise.all([
-    getClasses().catch(() => []),
-    getTeachers().catch(() => []),
-    getTestimonials().catch(() => []),
-    getGalleryImages().catch(() => []),
+  const [classesRes, teachersRes, galleryImagesRes] = await Promise.all([
+    apiGetClasses(),
+    apiGetTeachers(),
+    apiGetGalleryImages(),
   ]);
+
+  const classes = classesRes || [];
+  const teachers = teachersRes || [];
+  const galleryImages = galleryImagesRes || [];
 
   return (
     <>
@@ -37,11 +47,17 @@ export default async function HomePage() {
               </p>
             </div>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {classes.map((musicClass) => (
-                <ClassCard key={musicClass.id} musicClass={musicClass} />
-              ))}
-            </div>
+            {classes.length > 0 ? (
+              <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {classes.slice(0, 4).map((musicClass) => (
+                  <ClassCard key={musicClass.id} musicClass={musicClass} />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-10 text-center text-sm text-gray-500">
+                No classes found yet.
+              </p>
+            )}
           </div>
         </section>
 
@@ -71,11 +87,13 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-4">
-                  {teachers.slice(0, 4).map((teacher) => (
-                    <TeacherCard key={teacher.id} teacher={teacher} />
-                  ))}
-                </div>
+                {teachers.length > 0 ? (
+                  <HomeTeachersGrid teachers={teachers.slice(0, 4)} />
+                ) : (
+                  <p className="mt-8 text-sm text-gray-500">
+                    No teachers found yet.
+                  </p>
+                )}
               </div>
 
               {/* Testimonials — takes 2 cols */}
@@ -84,10 +102,12 @@ export default async function HomePage() {
                   What Our Students Say
                 </h2>
 
-                <div className="mt-8 space-y-5">
-                  {testimonials.slice(0, 2).map((t) => (
-                    <TestimonialCard key={t.id} testimonial={t} />
-                  ))}
+                <div className="mt-8">
+                  <GoogleReviews />
+                </div>
+
+                <div className="mt-5">
+                  <GoogleBusinessCard />
                 </div>
               </div>
             </div>
@@ -114,20 +134,26 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-              {galleryImages.slice(0, 4).map((img) => (
-                <div
-                  key={img.id}
-                  className="aspect-[4/3] overflow-hidden rounded-xl bg-brand-50"
-                >
-                  <img
-                    src={img.url}
-                    alt={img.caption ?? ""}
-                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                  />
-                </div>
-              ))}
-            </div>
+            {galleryImages.length > 0 ? (
+              <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+                {galleryImages.slice(0, 4).map((img) => (
+                  <div
+                    key={img.id}
+                    className="aspect-[4/3] overflow-hidden rounded-xl bg-brand-50"
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.caption ?? ""}
+                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-8 text-sm text-gray-500">
+                No gallery images found yet.
+              </p>
+            )}
           </div>
         </section>
 

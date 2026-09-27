@@ -3,11 +3,14 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createOrder as createRazorpayOrder } from "../services/razorpay.service.js";
+import { cached, invalidate } from "../utils/cache.js";
+
+const TTL = 60_000;
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export const listProducts = asyncHandler(async (req, res) => {
-  const { active, search, category } = req.query;
+  const { active, search, category, page, limit } = req.query;
 
   const where = {};
   if (active !== undefined) where.active = active === "true";
@@ -19,25 +22,53 @@ export const listProducts = asyncHandler(async (req, res) => {
     ];
   }
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-  });
+  const isPaginated = page !== undefined;
 
-  return ApiResponse(res, 200, products);
+  // Only cache the common, filterless, unpaginated "browse the shop" call —
+  // a search/filter/page query is cheap and specific enough not to need it.
+  const hasFilters = active !== undefined || (category && category !== "All") || search;
+  if (!isPaginated) {
+    const products = hasFilters
+      ? await prisma.product.findMany({ where, orderBy: { createdAt: "desc" } })
+      : await cached("shop:products:list", TTL, () =>
+          prisma.product.findMany({ where, orderBy: { createdAt: "desc" } })
+        );
+    return ApiResponse(res, 200, products);
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 24));
+
+  const [items, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (pageNum - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  return ApiResponse(res, 200, {
+    items,
+    total,
+    page: pageNum,
+    limit: pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
 });
 
 export const getProductBySlug = asyncHandler(async (req, res, next) => {
-  const product = await prisma.product.findUnique({
-    where: { slug: req.params.slug },
-  });
+  const product = await cached(`shop:products:${req.params.slug}`, TTL, () =>
+    prisma.product.findUnique({ where: { slug: req.params.slug } })
+  );
 
   if (!product) return next(new ApiError(404, "Product not found"));
   return ApiResponse(res, 200, product);
 });
 
 export const createProduct = asyncHandler(async (req, res, next) => {
-  const { name, slug, description, category = "Instruments", price, imageUrls = [], stock = 0, active = true } = req.body;
+  const { name, slug, description, category = "Instruments", price, deliveryCharge = 0, imageUrls = [], stock = 0, active = true } = req.body;
 
   if (!name || !price) {
     return next(new ApiError(400, "name and price (in rupees or paise) are required"));
@@ -45,7 +76,10 @@ export const createProduct = asyncHandler(async (req, res, next) => {
 
   const generatedSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-  const priceInPaise = Math.round(price > 50000 ? price : price * 100);
+  // price/deliveryCharge always arrive in rupees from the admin form — never
+  // guess the unit from magnitude, that silently corrupts anything ≥ ₹50,000.
+  const priceInPaise = Math.round(price * 100);
+  const deliveryChargeInPaise = Math.round(deliveryCharge * 100);
 
   const product = await prisma.product.create({
     data: {
@@ -54,17 +88,19 @@ export const createProduct = asyncHandler(async (req, res, next) => {
       description: description || "",
       category,
       price: priceInPaise,
+      deliveryCharge: deliveryChargeInPaise || 0,
       imageUrls: Array.isArray(imageUrls) ? imageUrls : [imageUrls].filter(Boolean),
       stock: parseInt(stock, 10) || 0,
       active: Boolean(active),
     },
   });
 
+  invalidate("shop:products");
   return ApiResponse(res, 201, product);
 });
 
 export const updateProduct = asyncHandler(async (req, res, next) => {
-  const { name, slug, description, price, imageUrls, stock, active } = req.body;
+  const { name, slug, description, price, deliveryCharge, imageUrls, stock, active } = req.body;
 
   const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
   if (!existing) return next(new ApiError(404, "Product not found"));
@@ -73,7 +109,10 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
   if (name !== undefined) data.name = name;
   if (slug !== undefined) data.slug = slug;
   if (description !== undefined) data.description = description;
-  if (price !== undefined) data.price = Math.round(price > 50000 ? price : price * 100);
+  if (price !== undefined) data.price = Math.round(price * 100);
+  if (deliveryCharge !== undefined) {
+    data.deliveryCharge = Math.round(deliveryCharge * 100) || 0;
+  }
   if (imageUrls !== undefined) data.imageUrls = Array.isArray(imageUrls) ? imageUrls : [imageUrls];
   if (stock !== undefined) data.stock = parseInt(stock, 10);
   if (active !== undefined) data.active = Boolean(active);
@@ -83,6 +122,7 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
     data,
   });
 
+  invalidate("shop:products");
   return ApiResponse(res, 200, updated);
 });
 
@@ -91,6 +131,7 @@ export const deleteProduct = asyncHandler(async (req, res, next) => {
   if (!existing) return next(new ApiError(404, "Product not found"));
 
   await prisma.product.delete({ where: { id: req.params.id } });
+  invalidate("shop:products");
   return ApiResponse(res, 200, { message: "Product deleted successfully", id: req.params.id });
 });
 
@@ -125,7 +166,10 @@ export const createShopOrder = asyncHandler(async (req, res, next) => {
   if (!product.active) return next(new ApiError(400, "Product is currently inactive"));
 
   const qty = Math.max(1, parseInt(quantity, 10) || 1);
-  const totalAmountPaise = product.price * qty;
+  if (qty > product.stock) {
+    return next(new ApiError(400, `Only ${product.stock} unit(s) of "${product.name}" available in stock`));
+  }
+  const totalAmountPaise = product.price * qty + (product.deliveryCharge || 0);
 
   // Create order
   const order = await prisma.order.create({
@@ -166,10 +210,11 @@ export const createShopOrder = asyncHandler(async (req, res, next) => {
 });
 
 export const listOrders = asyncHandler(async (req, res) => {
-  const { status, search } = req.query;
+  const { status, search, page, limit } = req.query;
 
-  const where = {};
-  if (status) where.status = status;
+  // A "Pending" order is checkout-started-but-never-paid — not a real order,
+  // so it's excluded unless a caller explicitly asks for that exact status.
+  const where = status ? { status } : { status: { not: "PENDING" } };
   if (search) {
     where.OR = [
       { buyerName: { contains: search, mode: "insensitive" } },
@@ -178,13 +223,31 @@ export const listOrders = asyncHandler(async (req, res) => {
     ];
   }
 
-  const orders = await prisma.order.findMany({
-    where,
-    include: { product: true, payment: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // No `page` param → unpaginated array, kept for any existing caller that
+  // still expects a plain list.
+  const isPaginated = page !== undefined;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
-  return ApiResponse(res, 200, orders);
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: { product: true, payment: true },
+      orderBy: { createdAt: "desc" },
+      ...(isPaginated ? { skip: (pageNum - 1) * pageSize, take: pageSize } : {}),
+    }),
+    isPaginated ? prisma.order.count({ where }) : Promise.resolve(null),
+  ]);
+
+  if (!isPaginated) return ApiResponse(res, 200, orders);
+
+  return ApiResponse(res, 200, {
+    items: orders,
+    total,
+    page: pageNum,
+    limit: pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
 });
 
 export const updateOrderStatus = asyncHandler(async (req, res, next) => {

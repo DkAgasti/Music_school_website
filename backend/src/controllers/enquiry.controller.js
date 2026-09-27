@@ -22,17 +22,42 @@ export const createEnquiry = asyncHandler(async (req, res, next) => {
 });
 
 export const listEnquiries = asyncHandler(async (req, res) => {
-  const { handled } = req.query;
+  const { handled, search, page, limit } = req.query;
 
   const where = {};
   if (handled !== undefined) where.handled = handled === "true";
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { message: { contains: search, mode: "insensitive" } },
+    ];
+  }
 
-  const enquiries = await prisma.enquiry.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
+  // No `page` param → unpaginated array, kept for any existing caller that
+  // still expects a plain list.
+  const isPaginated = page !== undefined;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+  const [enquiries, total] = await Promise.all([
+    prisma.enquiry.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      ...(isPaginated ? { skip: (pageNum - 1) * pageSize, take: pageSize } : {}),
+    }),
+    isPaginated ? prisma.enquiry.count({ where }) : Promise.resolve(null),
+  ]);
+
+  if (!isPaginated) return ApiResponse(res, 200, enquiries);
+
+  return ApiResponse(res, 200, {
+    items: enquiries,
+    total,
+    page: pageNum,
+    limit: pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   });
-
-  return ApiResponse(res, 200, enquiries);
 });
 
 export const toggleEnquiryHandled = asyncHandler(async (req, res, next) => {

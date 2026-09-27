@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth.routes.js";
 import publicRoutes from "./routes/public.routes.js";
 import admissionRoutes from "./routes/admission.routes.js";
 import studentRoutes from "./routes/student.routes.js";
+import enrollmentRoutes from "./routes/enrollment.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
 import classRoutes from "./routes/class.routes.js";
@@ -19,6 +20,7 @@ import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import cronRoutes from "./routes/cron.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import uploadRoutes from "./routes/upload.routes.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -38,6 +40,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api", publicRoutes);
 app.use("/api/admissions", admissionRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/classes", classRoutes);
@@ -51,6 +54,7 @@ app.use("/api/shop", shopRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/upload", uploadRoutes);
 
 app.use(errorHandler);
 

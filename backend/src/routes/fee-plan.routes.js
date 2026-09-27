@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-router.get("/", listFeePlans);
+router.get("/", requireAuth, listFeePlans);
 router.post("/", requireAuth, createFeePlan);
 router.patch("/:id", requireAuth, updateFeePlan);
 router.delete("/:id", requireAuth, deleteFeePlan);

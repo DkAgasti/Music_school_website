@@ -1,5 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getStudentDashboard } from "@/lib/api";
+import { apiGetMyProfile } from "@/Api/student/studentApi";
 import NoteIcon from "@/components/student/NoteIcon";
 
 function StatCard({ label, children }) {
@@ -11,10 +14,44 @@ function StatCard({ label, children }) {
   );
 }
 
-export default async function StudentDashboardPage() {
-  const { student, stats, enrolledClasses, progressNotes } = await getStudentDashboard();
+export default function StudentDashboardPage() {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalPaymentsLabel = `₹${Math.round(stats.totalPayments / 100).toLocaleString("en-IN")}`;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const result = await apiGetMyProfile();
+      if (!cancelled && result) setProfile(result);
+      if (!cancelled) setLoading(false);
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) return <p className="text-sm text-gray-500">Loading...</p>;
+  if (!profile) return <p className="text-sm text-gray-500">Failed to load your data.</p>;
+
+  const student = { name: profile.studentName };
+  const stats = {
+    enrolledClasses: profile.dashboardMetrics.enrolledClassesCount,
+    attendance: profile.dashboardMetrics.attendancePercentage,
+    progressStatus: profile.dashboardMetrics.progressStatus,
+  };
+  const enrolledClasses = profile.enrolledClasses;
+  const progressNotes = profile.progressNotes.map((n) => ({
+    id: n.id,
+    class: n.className,
+    note: n.note,
+    date: n.date,
+  }));
+
+  const totalPaymentsLabel = `₹${profile.dashboardMetrics.totalFeePaidRupees.toLocaleString("en-IN")}`;
 
   return (
     <div>
@@ -27,25 +64,17 @@ export default async function StudentDashboardPage() {
           <p className="mt-1 text-sm text-gray-500">Here&rsquo;s your student overview</p>
         </div>
 
-        <Link
-          href="/student/payments"
-          className="inline-flex items-center gap-2 rounded-full bg-[#E11D48] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md"
-        >
-          Pay Fees
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </Link>
+        
       </div>
 
       {/* Stat cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Enrolled Classes">
           <p className="text-2xl font-bold text-gray-900">{stats.enrolledClasses}</p>
         </StatCard>
 
         <StatCard label="Attendance">
-          <p className="text-2xl font-bold text-gray-900">{stats.attendance}%</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.attendance}</p>
         </StatCard>
 
         <StatCard label="Progress">

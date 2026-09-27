@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import ProductCard from "./ProductCard";
+import { apiGetProducts } from "@/Api/public/shopApi";
+
+const PAGE_SIZE = 12;
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -9,13 +12,46 @@ const FILTERS = [
   { key: "books", label: "Books" },
 ];
 
-export default function ShopCatalog({ products }) {
+export default function ShopCatalog({ initialProducts, initialTotalPages }) {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [products, setProducts] = useState(initialProducts);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const filteredProducts = useMemo(() => {
-    if (activeFilter === "all") return products;
-    return products.filter((product) => product.category === activeFilter);
-  }, [products, activeFilter]);
+  async function handleFilterChange(filterKey) {
+    setActiveFilter(filterKey);
+    setLoadingMore(true);
+    const res = await apiGetProducts({
+      active: true,
+      page: 1,
+      limit: PAGE_SIZE,
+      ...(filterKey !== "all" ? { category: filterKey } : {}),
+    });
+    if (res) {
+      setProducts(res.items || []);
+      setPage(1);
+      setTotalPages(res.totalPages || 1);
+    }
+    setLoadingMore(false);
+  }
+
+  async function handleLoadMore() {
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const res = await apiGetProducts({
+      active: true,
+      page: nextPage,
+      limit: PAGE_SIZE,
+      ...(activeFilter !== "all" ? { category: activeFilter } : {}),
+    });
+    if (res) {
+      setProducts((prev) => [...prev, ...(res.items || [])]);
+      setPage(nextPage);
+      setTotalPages(res.totalPages || 1);
+    }
+    setLoadingMore(false);
+  }
 
   return (
     <div>
@@ -27,7 +63,7 @@ export default function ShopCatalog({ products }) {
             <button
               key={filter.key}
               type="button"
-              onClick={() => setActiveFilter(filter.key)}
+              onClick={() => handleFilterChange(filter.key)}
               className={`rounded-full px-5 py-2 text-sm font-medium transition-colors cursor-pointer ${
                 isActive
                   ? "bg-[#E11D48] text-white shadow-sm"
@@ -42,13 +78,13 @@ export default function ShopCatalog({ products }) {
 
       {/* Grid: products + Direct Purchase card, 4 per row, all matching height */}
       <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {filteredProducts.length === 0 && (
+        {products.length === 0 && (
           <div className="flex min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-pink-200 bg-white/60 text-sm text-gray-500">
             No products in this category yet.
           </div>
         )}
 
-        {filteredProducts.slice(0, 3).map((product) => (
+        {products.slice(0, 3).map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
 
@@ -75,10 +111,23 @@ export default function ShopCatalog({ products }) {
         </div>
 
         {/* Remaining products continue the 4-per-row grid */}
-        {filteredProducts.slice(3).map((product) => (
+        {products.slice(3).map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
+
+      {page < totalPages && (
+        <div className="mt-8 flex justify-center">
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="rounded-full border border-gray-200 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? "Loading…" : "Load More Products"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

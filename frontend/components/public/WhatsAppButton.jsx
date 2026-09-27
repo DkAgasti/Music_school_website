@@ -1,7 +1,21 @@
-export default function WhatsAppButton({ phone = "910000000000" }) {
+// wa.me needs digits only (no "+") and a full international prefix, but the
+// admin just types their local business number in Settings — so normalize
+// it here rather than asking them to enter it in a special format.
+function toWhatsAppNumber(rawPhone) {
+  const digits = String(rawPhone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  // A bare 10-digit number is a local Indian number with no country code yet.
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
+export default function WhatsAppButton({ phone }) {
+  const whatsappNumber = toWhatsAppNumber(phone);
+  if (!whatsappNumber) return null;
+
   return (
     <a
-      href={`https://wa.me/${phone}`}
+      href={`https://wa.me/${whatsappNumber}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"

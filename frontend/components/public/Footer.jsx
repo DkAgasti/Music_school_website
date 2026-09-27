@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { apiGetSiteSettings } from "@/Api/public/siteSettingsApi";
 
 const QUICK_LINKS = [
   { href: "/", label: "Home" },
@@ -8,8 +9,16 @@ const QUICK_LINKS = [
   { href: "/gallery", label: "Gallery" },
 ];
 
-export default function Footer({ theme = "light" }) {
+export default async function Footer({ theme = "light" }) {
   const isLight = theme === "light";
+  const settings = (await apiGetSiteSettings()) || {};
+
+  const businessName = settings.businessName || "Synchrocity Music School";
+  const tagline = settings.tagline || "Learn · Play · Grow";
+  const phone = settings.phone || "+91 98765 43210";
+  const email = settings.email || "info@harmonymusic.in";
+  const address = settings.address || "123 Music Lane, Green Park\nNew Delhi – 110016";
+  const copyrightYear = new Date().getFullYear();
 
   return (
     <footer className={isLight ? "bg-[#FFF7FB] text-gray-600" : "bg-dark text-gray-400"}>
@@ -17,15 +26,23 @@ export default function Footer({ theme = "light" }) {
         {/* Brand */}
         <div>
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDEBF5] text-[#E11D48] shrink-0">
-              <span className="text-xl leading-none font-bold">&#9835;</span>
-            </div>
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt={businessName}
+                className="h-14 w-14 rounded-lg object-contain shrink-0"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FDEBF5] text-[#E11D48] shrink-0">
+                <span className="text-xl leading-none font-bold">&#9835;</span>
+              </div>
+            )}
             <div>
               <span className={`block font-serif text-base font-bold leading-tight ${isLight ? "text-gray-900" : "text-white"}`}>
-                Harmony Music School
+                {businessName}
               </span>
               <span className="block text-[11px] text-gray-500 font-normal leading-tight mt-0.5">
-                Learn &middot; Play &middot; Grow
+                {tagline}
               </span>
             </div>
           </Link>
@@ -62,7 +79,7 @@ export default function Footer({ theme = "light" }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
               </span>
-              <span>+91 98765 43210</span>
+              <span>{phone}</span>
             </li>
             <li className="flex items-center gap-3">
               <span className="flex h-6 w-6 items-center justify-center text-brand-500 shrink-0">
@@ -70,7 +87,7 @@ export default function Footer({ theme = "light" }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </span>
-              <span>info@harmonymusic.in</span>
+              <span>{email}</span>
             </li>
             <li className="flex items-start gap-3">
               <span className="mt-0.5 flex h-6 w-6 items-center justify-center text-brand-500 shrink-0">
@@ -79,11 +96,7 @@ export default function Footer({ theme = "light" }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </span>
-              <span>
-                123 Music Lane, Green Park
-                <br />
-                New Delhi &ndash; 110016
-              </span>
+              <span className="whitespace-pre-line">{address}</span>
             </li>
           </ul>
         </div>
@@ -130,9 +143,22 @@ export default function Footer({ theme = "light" }) {
 
       {/* Bottom bar */}
       <div className={isLight ? "border-t border-pink-100/70" : "border-t border-white/10"}>
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-5 text-xs text-gray-500 sm:flex-row">
-          <p>&copy; 2025 Harmony Music School. All rights reserved.</p>
-          <div className="flex gap-4">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-5 py-5 text-center text-xs text-gray-500 sm:grid sm:grid-cols-3 sm:text-left">
+          <p className="sm:justify-self-start">&copy; {copyrightYear} {businessName}. All rights reserved.</p>
+          <a
+            href="https://codeprodev.site"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1.5 text-[11px] text-gray-400 hover:text-brand-500 sm:justify-self-center"
+          >
+            <img
+              src="https://res.cloudinary.com/fexwwils/image/upload/v1790493493/CodePro_Logo2.png"
+              alt="CodePro"
+              className="h-8 w-8 shrink-0 object-contain"
+            />
+            Built by <span className="font-bold text-dark">CodePro</span>
+          </a>
+          <div className="flex gap-4 sm:justify-self-end">
             <Link href="/privacy-policy" className="hover:text-brand-500">
               Privacy Policy
             </Link>

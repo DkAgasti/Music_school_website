@@ -2,10 +2,16 @@ import Link from "next/link";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import ClassCard from "@/components/public/ClassCard";
-import { getClasses } from "@/lib/api";
+import { apiGetClasses } from "@/Api/public/classApi";
+
+export const metadata = {
+  title: "Our Classes - Synchrocity Music School",
+  description:
+    "Explore guitar, piano, vocals, violin, drums and tabla classes at Synchrocity Music School — flexible batches and experienced faculty.",
+};
 
 export default async function ClassesPage() {
-  const classes = await getClasses().catch(() => []);
+  const classes = (await apiGetClasses()) || [];
 
   return (
     <>

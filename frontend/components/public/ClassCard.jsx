@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 export default function ClassCard({ musicClass }) {
-  const duration = musicClass.duration || "6 Months";
+  const duration = musicClass.durationMonths
+    ? `${musicClass.durationMonths} Month${musicClass.durationMonths > 1 ? "s" : ""}`
+    : null;
   const feeRange = musicClass.feeRange || (musicClass.feePlans?.[0] ? `₹${(musicClass.feePlans[0].amount / 100).toLocaleString()}/month` : "₹2,000 – ₹3,000/month");
   const tagline = musicClass.tagline || musicClass.description;
 
@@ -33,10 +35,12 @@ export default function ClassCard({ musicClass }) {
 
         {/* Meta rows */}
         <div className="mt-3.5 space-y-1">
-          <div className="text-xs md:text-sm">
-            <span className="font-bold text-[#D8006E]">Duration:</span>
-            <span className="font-bold text-gray-900">{duration}</span>
-          </div>
+          {duration && (
+            <div className="text-xs md:text-sm">
+              <span className="font-bold text-[#D8006E]">Duration:</span>
+              <span className="font-bold text-gray-900">{duration}</span>
+            </div>
+          )}
           <div className="text-xs md:text-sm font-bold text-gray-900">
             Fee:{feeRange}
           </div>

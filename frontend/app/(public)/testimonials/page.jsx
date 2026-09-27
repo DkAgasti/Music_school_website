@@ -1,21 +1,33 @@
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import TestimonialCard from "@/components/public/TestimonialCard";
-import { getTestimonials } from "@/lib/api";
+import { apiGetTestimonials } from "@/Api/public/testimonialApi";
+
+export const metadata = {
+  title: "Testimonials - Synchrocity Music School",
+  description: "See what students and parents say about their experience at Synchrocity Music School.",
+};
 
 export default async function TestimonialsPage() {
-  const testimonials = await getTestimonials().catch(() => []);
+  const testimonialsRes = await apiGetTestimonials();
+  const testimonials = testimonialsRes || [];
 
   return (
     <>
       <Navbar />
       <main className="mx-auto max-w-6xl px-4 py-16">
         <h1 className="text-3xl font-bold text-gray-900">Testimonials</h1>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {testimonials.map((testimonial) => (
-            <TestimonialCard key={testimonial.id} testimonial={testimonial} />
-          ))}
-        </div>
+        {testimonials.length > 0 ? (
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {testimonials.map((testimonial) => (
+              <TestimonialCard key={testimonial.id} testimonial={testimonial} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-6 text-sm text-gray-500">
+            No testimonials found yet.
+          </p>
+        )}
       </main>
       <Footer />
     </>

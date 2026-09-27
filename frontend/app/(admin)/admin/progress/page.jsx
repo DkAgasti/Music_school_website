@@ -1,187 +1,143 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import {
+  apiGetProgress,
+  apiAddProgressNote,
+  apiUpdateProgressNote,
+  apiDeleteProgressNote,
+} from "@/Api/admin/progressApi";
+import { apiGetEnrollments } from "@/Api/admin/enrollmentApi";
+import Pagination from "@/components/admin/Pagination";
 
-const DEFAULT_PROGRESS_NOTES = [
-  {
-    id: "prog-1",
-    student: "Aarav Sharma",
-    class: "Guitar",
-    rating: 5,
-    note: "Improved chord transitions and rhythm. Ready to start Grade 2 repertoire.",
-    updated: "Apr 10, 2025",
-  },
-  {
-    id: "prog-2",
-    student: "Aarav Sharma",
-    class: "Piano",
-    rating: 4,
-    note: "Good progress in both hands coordination. Keep practicing arpeggios.",
-    updated: "Apr 5, 2025",
-  },
-  {
-    id: "prog-3",
-    student: "Diya Patel",
-    class: "Piano",
-    rating: 4,
-    note: "Needs practice on tempo consistency with metronome on allegro pieces.",
-    updated: "Apr 8, 2025",
-  },
-  {
-    id: "prog-4",
-    student: "Rohan Mehta",
-    class: "Tabla",
-    rating: 5,
-    note: "Excellent grip on teentaal patterns and kaydas. High level of dedication.",
-    updated: "Apr 9, 2025",
-  },
-  {
-    id: "prog-5",
-    student: "Ishita Rao",
-    class: "Vocals",
-    rating: 4,
-    note: "Breath control improving steadily. Pitch accuracy during taan is consistent.",
-    updated: "Apr 7, 2025",
-  },
-  {
-    id: "prog-6",
-    student: "Ananya Singh",
-    class: "Violin",
-    rating: 5,
-    note: "Bowing technique much smoother now. Tone clarity has significantly advanced.",
-    updated: "Apr 6, 2025",
-  },
-];
+const PAGE_SIZE = 10;
+
+function formatDate(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleDateString("en-GB", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function ProgressTrackerPage() {
-  const [notes, setNotes] = useState(DEFAULT_PROGRESS_NOTES);
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [enrollments, setEnrollments] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [viewingNote, setViewingNote] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
 
   const [form, setForm] = useState({
-    student: "",
-    class: "Guitar",
+    enrollmentId: "",
     note: "",
     rating: "5",
   });
 
   const [editForm, setEditForm] = useState({
-    student: "",
-    class: "Guitar",
     note: "",
     rating: "5",
   });
 
   useEffect(() => {
-    async function loadProgress() {
-      try {
-        const res = await api.get("/progress");
-        if (res && Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((item) => ({
-            id: item.id,
-            student: item.studentName || item.student?.name || "Student",
-            class: item.className || item.student?.class?.name || "Course",
-            note: item.note,
-            rating: item.rating || 5,
-            updated: new Date(item.date).toLocaleDateString("en-GB", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-          }));
-          setNotes(mapped);
-        }
-      } catch (err) {
-        console.warn("Using template progress notes:", err.message);
-      }
-    }
-    loadProgress();
+    apiGetEnrollments({ active: true }).then((res) => {
+      if (Array.isArray(res)) setEnrollments(res);
+    });
   }, []);
+
+  // Reset to page 1 whenever the search term changes, debounced so we're not
+  // firing a request on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      loadProgress(1, searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  useEffect(() => {
+    loadProgress(page, searchTerm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  async function loadProgress(pageToLoad, search) {
+    setLoading(true);
+    const res = await apiGetProgress({ page: pageToLoad, limit: PAGE_SIZE, search: search || undefined });
+    if (res && Array.isArray(res.items)) {
+      const mapped = res.items.map((item) => ({
+        id: item.id,
+        studentId: item.studentId,
+        student: item.studentName || "Student",
+        class: item.className || "—",
+        note: item.note,
+        rating: item.rating || 5,
+        updated: formatDate(item.date),
+      }));
+      setNotes(mapped);
+      setTotalPages(res.totalPages);
+    }
+    setLoading(false);
+  }
+
+  function resetAddForm() {
+    setForm({ enrollmentId: "", note: "", rating: "5" });
+  }
 
   async function handleAddNote(e) {
     e.preventDefault();
-    if (!form.student.trim() || !form.note.trim()) return;
+    if (!form.enrollmentId || !form.note.trim()) return;
 
-    const newNote = {
-      id: `prog-${Date.now()}`,
-      student: form.student,
-      class: form.class,
+    const result = await apiAddProgressNote({
+      enrollmentId: form.enrollmentId,
       note: form.note,
       rating: parseInt(form.rating, 10),
-      updated: new Date().toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }),
-    };
-
-    // Prepend new note to the top!
-    setNotes([newNote, ...notes]);
-    setShowModal(false);
-    setForm({
-      student: "",
-      class: "Guitar",
-      note: "",
-      rating: "5",
     });
 
-    try {
-      await api.post("/progress", {
-        studentId: newNote.id,
-        note: newNote.note,
-        rating: parseInt(form.rating, 10),
-      }, { auth: true });
-    } catch (err) {
-      console.warn("Progress sync note:", err.message);
+    if (result) {
+      setShowModal(false);
+      resetAddForm();
+      loadProgress(page, searchTerm);
     }
   }
 
   function handleOpenEdit(noteItem) {
     setEditingNote(noteItem);
     setEditForm({
-      student: noteItem.student,
-      class: noteItem.class,
       note: noteItem.note,
       rating: String(noteItem.rating || 5),
     });
   }
 
-  function handleSaveEdit(e) {
+  async function handleSaveEdit(e) {
     e.preventDefault();
     if (!editingNote) return;
 
-    setNotes((prev) =>
-      prev.map((item) =>
-        item.id === editingNote.id
-          ? {
-              ...item,
-              student: editForm.student,
-              class: editForm.class,
-              note: editForm.note,
-              rating: parseInt(editForm.rating, 10),
-              updated: new Date().toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }),
-            }
-          : item
-      )
-    );
-    setEditingNote(null);
+    const result = await apiUpdateProgressNote(editingNote.id, {
+      note: editForm.note,
+      rating: parseInt(editForm.rating, 10),
+    });
+
+    if (result) {
+      setEditingNote(null);
+      loadProgress(page, searchTerm);
+    }
   }
 
-  function handleDeleteNote(id, student) {
+  async function handleDeleteNote(id, student) {
     if (!confirm(`Are you sure you want to delete this progress note for ${student}?`)) return;
-    setNotes((prev) => prev.filter((item) => item.id !== id));
+    const result = await apiDeleteProgressNote(id);
+    if (result) {
+      loadProgress(page, searchTerm);
+    }
   }
 
-  const filteredNotes = notes.filter((item) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      item.student.toLowerCase().includes(term) ||
-      item.class.toLowerCase().includes(term) ||
-      item.note.toLowerCase().includes(term)
-    );
-  });
-
-  const displayedNotes = showAll ? filteredNotes : filteredNotes.slice(0, 10);
+  const selectedStudentClass =
+    enrollments.find((e) => e.id === form.enrollmentId)?.class?.name || "—";
 
   return (
     <div className="space-y-6 pb-12">
@@ -196,7 +152,10 @@ export default function ProgressTrackerPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            resetAddForm();
+            setShowModal(true);
+          }}
           className="inline-flex items-center justify-center rounded-xl bg-[#E11D48] hover:bg-[#BE123C] px-5 py-2.5 text-sm font-medium text-white shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
         >
           Add Note
@@ -209,21 +168,13 @@ export default function ProgressTrackerPage() {
           <h2 className="font-serif text-lg font-bold text-gray-900">
             Latest Progress Notes
           </h2>
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              placeholder="Search student or course..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="text-xs rounded-full border border-[#F3E2EC] px-3.5 py-1.5 focus:outline-none focus:border-[#E11D48] bg-white shadow-xs"
-            />
-            <button
-              onClick={() => setShowAll(!showAll)}
-              className="text-xs font-semibold text-[#E11D48] hover:underline cursor-pointer"
-            >
-              {showAll ? "Show Less" : "View All"}
-            </button>
-          </div>
+          <input
+            type="text"
+            placeholder="Search student or course..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="text-xs rounded-full border border-[#F3E2EC] px-3.5 py-1.5 focus:outline-none focus:border-[#E11D48] bg-white shadow-xs"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -238,14 +189,20 @@ export default function ProgressTrackerPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9EBF2] text-sm">
-              {displayedNotes.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-gray-400">
+                    Loading progress notes...
+                  </td>
+                </tr>
+              ) : notes.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-xs text-gray-400">
                     No progress notes match your search.
                   </td>
                 </tr>
               ) : (
-                displayedNotes.map((row) => (
+                notes.map((row) => (
                   <tr key={row.id} className="hover:bg-[#FFF7FB]/80 transition-colors">
                     <td className="px-4 py-3.5 font-medium text-gray-800 whitespace-nowrap">
                       {row.student}
@@ -300,6 +257,8 @@ export default function ProgressTrackerPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       {/* Add Note Modal */}
@@ -312,16 +271,21 @@ export default function ProgressTrackerPage() {
             <form onSubmit={handleAddNote} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Student Name
+                  Student
                 </label>
-                <input
+                <select
                   required
-                  type="text"
-                  value={form.student}
-                  onChange={(e) => setForm({ ...form, student: e.target.value })}
-                  placeholder="e.g. Aarav Sharma"
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
+                  value={form.enrollmentId}
+                  onChange={(e) => setForm({ ...form, enrollmentId: e.target.value })}
+                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
+                >
+                  <option value="">Select student</option>
+                  {enrollments.map((en) => (
+                    <option key={en.id} value={en.id}>
+                      {en.student?.name} — {en.class?.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -329,18 +293,12 @@ export default function ProgressTrackerPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Class
                   </label>
-                  <select
-                    value={form.class}
-                    onChange={(e) => setForm({ ...form, class: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
-                  >
-                    <option value="Guitar">Guitar</option>
-                    <option value="Piano">Piano</option>
-                    <option value="Tabla">Tabla</option>
-                    <option value="Violin">Violin</option>
-                    <option value="Vocals">Vocals</option>
-                    <option value="Drums">Drums</option>
-                  </select>
+                  <input
+                    disabled
+                    type="text"
+                    value={selectedStudentClass}
+                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm bg-gray-50 text-gray-500"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -377,7 +335,10 @@ export default function ProgressTrackerPage() {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#F3E2EC]">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    resetAddForm();
+                  }}
                   className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 cursor-pointer"
                 >
                   Cancel
@@ -404,14 +365,13 @@ export default function ProgressTrackerPage() {
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Student Name
+                  Student
                 </label>
                 <input
-                  required
+                  disabled
                   type="text"
-                  value={editForm.student}
-                  onChange={(e) => setEditForm({ ...editForm, student: e.target.value })}
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
+                  value={editingNote.student}
+                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm bg-gray-50 text-gray-500"
                 />
               </div>
 
@@ -420,18 +380,12 @@ export default function ProgressTrackerPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Class
                   </label>
-                  <select
-                    value={editForm.class}
-                    onChange={(e) => setEditForm({ ...editForm, class: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
-                  >
-                    <option value="Guitar">Guitar</option>
-                    <option value="Piano">Piano</option>
-                    <option value="Tabla">Tabla</option>
-                    <option value="Violin">Violin</option>
-                    <option value="Vocals">Vocals</option>
-                    <option value="Drums">Drums</option>
-                  </select>
+                  <input
+                    disabled
+                    type="text"
+                    value={editingNote.class}
+                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm bg-gray-50 text-gray-500"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">

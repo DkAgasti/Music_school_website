@@ -1,4 +1,8 @@
-import { getStudentProfile } from "@/lib/api";
+"use client";
+
+import { useEffect, useState } from "react";
+import { apiGetMyProfile } from "@/Api/student/studentApi";
+import EditProfileModal from "./EditProfileModal";
 
 function Field({ label, value }) {
   return (
@@ -9,18 +13,55 @@ function Field({ label, value }) {
   );
 }
 
-export default async function StudentProfilePage() {
-  const profile = await getStudentProfile();
+export default function StudentProfilePage() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const result = await apiGetMyProfile();
+      if (!cancelled && result) setData(result);
+      if (!cancelled) setLoading(false);
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) return <p className="text-sm text-gray-500">Loading...</p>;
+  if (!data) return <p className="text-sm text-gray-500">Failed to load your data.</p>;
+
+  const profile = {
+    name: data.studentName,
+    studentIdLabel: data.studentId.slice(-8).toUpperCase(),
+    status: data.active ? "Active" : "Inactive",
+    memberSince: data.joinedDate,
+    email: data.email,
+    phone: data.phone,
+    dob: data.dob,
+    photoUrl: data.photoUrl,
+    guardianName: data.guardianName || "—",
+    guardianPhone: data.guardianPhone || "—",
+    address: data.address || "—",
+  };
 
   const memberSince = new Date(profile.memberSince).toLocaleDateString("en-US", {
     month: "short",
     year: "numeric",
   });
-  const dob = new Date(profile.dob).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const dob = profile.dob
+    ? new Date(profile.dob).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
   return (
     <div>
@@ -33,7 +74,8 @@ export default async function StudentProfilePage() {
 
         <button
           type="button"
-          className="inline-flex items-center gap-2 self-start rounded-full bg-[#E11D48] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md"
+          onClick={() => setEditing(true)}
+          className="inline-flex items-center gap-2 self-start rounded-full bg-[#E11D48] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#D81B60] hover:shadow-md cursor-pointer"
         >
           Edit Profile
         </button>
@@ -42,10 +84,14 @@ export default async function StudentProfilePage() {
       {/* Identity card */}
       <div className="mt-6 rounded-2xl border border-pink-100/70 bg-white p-6 sm:p-7">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-[#D63E82] via-[#E66DA4] to-[#F298BE] text-white">
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-tr from-[#D63E82] via-[#E66DA4] to-[#F298BE] text-white">
+            {profile.photoUrl ? (
+              <img src={profile.photoUrl} alt={profile.name} className="h-full w-full object-cover" />
+            ) : (
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            )}
           </div>
 
           <div>
@@ -74,6 +120,17 @@ export default async function StudentProfilePage() {
           <Field label="Address" value={profile.address} />
         </div>
       </div>
+
+      {editing && (
+        <EditProfileModal
+          data={data}
+          onClose={() => setEditing(false)}
+          onSaved={(updated) => {
+            setData(updated);
+            setEditing(false);
+          }}
+        />
+      )}
     </div>
   );
 }

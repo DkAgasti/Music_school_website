@@ -1,11 +1,36 @@
+import { cache } from "react";
 import Link from "next/link";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
-import { getProductBySlug } from "@/lib/api";
+import { apiGetProductBySlug } from "@/Api/public/shopApi";
 import CheckoutForm from "./CheckoutForm";
 
+// generateMetadata and the page body both need this same product — this
+// app's API client uses axios (not the native fetch Next.js auto-dedupes),
+// so without this the same request would fire twice per page load.
+const getProductBySlug = cache(apiGetProductBySlug);
+
+export async function generateMetadata({ params }) {
+  const product = await getProductBySlug(params.slug);
+  if (!product) {
+    return { title: "Product Not Found - Synchrocity Music School" };
+  }
+
+  const title = `Buy ${product.name} - Synchrocity Music School`;
+  const description =
+    product.description || `Buy ${product.name} from the Synchrocity Music School shop.`;
+
+  return {
+    title,
+    description,
+    openGraph: product.imageUrls?.[0]
+      ? { title, description, images: [{ url: product.imageUrls[0] }] }
+      : { title, description },
+  };
+}
+
 export default async function CheckoutPage({ params }) {
-  const product = await getProductBySlug(params.slug).catch(() => null);
+  const product = await getProductBySlug(params.slug);
 
   if (!product) {
     return (

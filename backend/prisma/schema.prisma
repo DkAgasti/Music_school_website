@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {
@@ -47,32 +48,35 @@ enum OrderStatus {
 // ─── Models ──────────────────────────────────────────────────────────
 
 model Admin {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  resetOtpHash      String?
+  resetOtpExpiresAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   progressNotes ProgressNote[]
 }
 
 model Class {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String
-  syllabus    String?
-  imageUrl    String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  description    String
+  syllabus       String?
+  imageUrl       String?
+  durationMonths Int?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  batches    Batch[]
-  feePlans   FeePlan[]
-  students   Student[]
-  admissions Admission[]
-  teachers   Teacher[]
+  batches     Batch[]
+  feePlans    FeePlan[]
+  admissions  Admission[]
+  teachers    Teacher[]
+  enrollments Enrollment[]
 }
 
 model Batch {
@@ -85,9 +89,9 @@ model Batch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  class      Class        @relation(fields: [classId], references: [id])
-  students   Student[]
-  admissions Admission[]
+  class       Class        @relation(fields: [classId], references: [id])
+  admissions  Admission[]
+  enrollments Enrollment[]
 }
 
 model FeePlan {
@@ -99,8 +103,9 @@ model FeePlan {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  class      Class       @relation(fields: [classId], references: [id])
-  admissions Admission[]
+  class       Class        @relation(fields: [classId], references: [id])
+  admissions  Admission[]
+  enrollments Enrollment[]
 }
 
 model Admission {
@@ -111,71 +116,96 @@ model Admission {
   phone        String
   email        String
   address      String?
+  passwordHash String?
   classId      String
   batchId      String
   feePlanId    String
   status       AdmissionStatus @default(PENDING)
+  // Set only when an already-logged-in student applies to join ANOTHER
+  // class — lets admin see who's applying before payment completes. Null
+  // for brand-new signups (the normal public admission flow).
+  studentId    String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
-  class   Class    @relation(fields: [classId], references: [id])
-  batch   Batch    @relation(fields: [batchId], references: [id])
-  feePlan FeePlan  @relation(fields: [feePlanId], references: [id])
-  student Student?
-  payment Payment?
+  class      Class       @relation(fields: [classId], references: [id])
+  batch      Batch       @relation(fields: [batchId], references: [id])
+  feePlan    FeePlan     @relation(fields: [feePlanId], references: [id])
+  applicant  Student?    @relation("AdmissionApplicant", fields: [studentId], references: [id])
+  enrollment Enrollment? @relation("EnrollmentAdmission")
+  payment    Payment?
 
   @@index([status])
 }
 
 model Student {
-  id           String    @id @default(cuid())
-  name         String
-  dob          DateTime?
-  email        String
-  phone        String
-  guardianName String?
-  address      String?
-  joinedDate   DateTime  @default(now())
-  classId      String
-  batchId      String
-  active       Boolean   @default(true)
-  admissionId  String?   @unique
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  dob           DateTime?
+  email         String    @unique
+  phone         String
+  passwordHash  String?
+  photoUrl      String?
+  guardianName  String?
+  guardianPhone String?
+  address       String?
+  joinedDate    DateTime  @default(now())
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
+  payments              Payment[]
+  enrollments           Enrollment[]
+  admissionApplications Admission[]    @relation("AdmissionApplicant")
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  studentId   String
+  classId     String
+  batchId     String
+  feePlanId   String?
+  admissionId String?  @unique
+  active      Boolean  @default(true)
+  joinedDate  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student    Student        @relation(fields: [studentId], references: [id])
   class      Class          @relation(fields: [classId], references: [id])
   batch      Batch          @relation(fields: [batchId], references: [id])
-  admission  Admission?     @relation(fields: [admissionId], references: [id])
+  feePlan    FeePlan?       @relation(fields: [feePlanId], references: [id])
+  admission  Admission?     @relation("EnrollmentAdmission", fields: [admissionId], references: [id])
   attendance Attendance[]
   progress   ProgressNote[]
   payments   Payment[]
 }
 
 model Attendance {
-  id        String           @id @default(cuid())
-  studentId String
-  date      DateTime
-  status    AttendanceStatus
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id           String           @id @default(cuid())
+  enrollmentId String
+  date         DateTime
+  status       AttendanceStatus
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  student Student @relation(fields: [studentId], references: [id])
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
 
-  @@unique([studentId, date])
+  @@unique([enrollmentId, date])
 }
 
 model ProgressNote {
-  id        String   @id @default(cuid())
-  studentId String
-  date      DateTime @default(now())
-  note      String
-  rating    Int?
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  enrollmentId String
+  date         DateTime @default(now())
+  note         String
+  rating       Int?
+  authorId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  student Student @relation(fields: [studentId], references: [id])
-  author  Admin   @relation(fields: [authorId], references: [id])
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+  author     Admin      @relation(fields: [authorId], references: [id])
 }
 
 model Payment {
@@ -188,27 +218,30 @@ model Payment {
   purpose           PaymentPurpose
   admissionId       String?       @unique
   studentId         String?
+  enrollmentId      String?
   orderId           String?       @unique
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  admission Admission? @relation(fields: [admissionId], references: [id])
-  student   Student?   @relation(fields: [studentId], references: [id])
-  order     Order?     @relation(fields: [orderId], references: [id])
+  admission  Admission?  @relation(fields: [admissionId], references: [id])
+  student    Student?    @relation(fields: [studentId], references: [id])
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id])
+  order      Order?      @relation(fields: [orderId], references: [id])
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String
-  category    String   @default("Instruments")
-  price       Int           // amount in paise
-  imageUrls   String[]
-  stock       Int      @default(0)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  description    String
+  category       String   @default("Instruments")
+  price          Int           // amount in paise
+  deliveryCharge Int      @default(0) // amount in paise, 0 = free delivery
+  imageUrls      String[]
+  stock          Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   orders Order[]
 }

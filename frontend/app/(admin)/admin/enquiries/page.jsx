@@ -1,161 +1,118 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import {
+  apiGetEnquiries,
+  apiToggleEnquiryHandled,
+  apiDeleteEnquiry,
+} from "@/Api/admin/enquiryApi";
+import Pagination from "@/components/admin/Pagination";
 
-const DEFAULT_ENQUIRIES = [
-  {
-    id: "enq-1",
-    name: "Pooja Malhotra",
-    email: "pooja.m@gmail.com",
-    phone: "+91 98765 22001",
-    message: "Interested in weekend piano batches for my son. Do you have slots open on Saturday mornings?",
-    date: "28 Apr 2025",
-    status: "New",
-  },
-  {
-    id: "enq-2",
-    name: "Sanjay Gupta",
-    email: "sanjay.g@yahoo.com",
-    phone: "+91 98765 22002",
-    message: "What is the fee structure for adult guitar classes? Looking to start next month.",
-    date: "27 Apr 2025",
-    status: "New",
-  },
-  {
-    id: "enq-3",
-    name: "Ritu Sharma",
-    email: "ritu.sharma@gmail.com",
-    phone: "+91 98765 22003",
-    message: "Do you offer trial classes for Hindustani vocals? How long is one demo session?",
-    date: "26 Apr 2025",
-    status: "Replied",
-  },
-  {
-    id: "enq-4",
-    name: "Amit Bansal",
-    email: "amit.b@outlook.com",
-    phone: "+91 98765 22004",
-    message: "Need details about drum kit classes and practice room availability during weekdays.",
-    date: "25 Apr 2025",
-    status: "Replied",
-  },
-  {
-    id: "enq-5",
-    name: "Farah Khan",
-    email: "farah.k@gmail.com",
-    phone: "+91 98765 22005",
-    message: "Is there an age limit for beginner violin classes? Can adults also enroll?",
-    date: "24 Apr 2025",
-    status: "Replied",
-  },
-];
+const PAGE_SIZE = 20;
+
+function formatDate(dateString) {
+  return new Date(dateString).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function mapEnquiry(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    email: item.email,
+    phone: item.phone || "—",
+    message: item.message,
+    handled: item.handled,
+    date: formatDate(item.createdAt),
+    status: item.handled ? "Replied" : "New",
+  };
+}
 
 export default function EnquiriesPage() {
-  const [enquiries, setEnquiries] = useState(DEFAULT_ENQUIRIES);
+  const [enquiries, setEnquiries] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [viewingEnquiry, setViewingEnquiry] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    message: "",
-  });
+  async function loadEnquiries(pageToLoad, currentFilter, search) {
+    setLoading(true);
+    const params = { page: pageToLoad, limit: PAGE_SIZE };
+    if (currentFilter === "New") params.handled = false;
+    else if (currentFilter === "Replied") params.handled = true;
+    if (search) params.search = search;
+
+    const res = await apiGetEnquiries(params);
+    if (res && Array.isArray(res.items)) {
+      setEnquiries(res.items.map(mapEnquiry));
+      setTotalPages(res.totalPages);
+    }
+    setLoading(false);
+  }
+
+  function handleFilterChange(next) {
+    setFilter(next);
+    setPage(1);
+    loadEnquiries(1, next, searchTerm);
+  }
+
+  function handlePageChange(next) {
+    setPage(next);
+    loadEnquiries(next, filter, searchTerm);
+  }
+
+  // Reset to page 1 whenever the search term changes, debounced so we're not
+  // firing a request on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      loadEnquiries(1, filter, searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   useEffect(() => {
-    async function loadEnquiries() {
-      try {
-        const res = await api.get("/enquiries", { auth: true });
-        if (res && Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((item) => ({
-            id: item.id,
-            name: item.name,
-            email: item.email,
-            phone: item.phone || "—",
-            message: item.message,
-            date: new Date(item.createdAt).toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }),
-            status: item.handled ? "Replied" : "New",
-          }));
-          setEnquiries(mapped);
-        }
-      } catch (err) {
-        console.warn("Using template enquiries:", err.message);
-      }
-    }
-    loadEnquiries();
+    loadEnquiries(1, "All", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function handleAddEnquiry(e) {
-    e.preventDefault();
-    const newEntry = {
-      id: `enq-${Date.now()}`,
-      name: form.name,
-      email: form.email,
-      phone: form.phone || "—",
-      message: form.message,
-      date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      status: "New",
-    };
-
-    // Prepend new inquiry to the top!
-    setEnquiries([newEntry, ...enquiries]);
-    setShowAddModal(false);
-    setForm({ name: "", email: "", phone: "", message: "" });
-  }
 
   async function toggleStatus(id) {
     const target = enquiries.find((e) => e.id === id);
     if (!target) return;
-    const nextStatus = target.status === "New" ? "Replied" : "New";
+    const nextHandled = !target.handled;
 
-    setEnquiries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: nextStatus } : e))
-    );
-
-    if (!id.startsWith("enq-")) {
-      try {
-        await api.patch(
-          `/enquiries/${id}/handle`,
-          { handled: nextStatus === "Replied" },
-          { auth: true }
-        );
-      } catch (err) {
-        console.warn("Error updating enquiry status:", err.message);
-      }
+    const result = await apiToggleEnquiryHandled(id, nextHandled);
+    if (result) {
+      setEnquiries((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? { ...e, handled: nextHandled, status: nextHandled ? "Replied" : "New" }
+            : e
+        )
+      );
+      setViewingEnquiry((prev) =>
+        prev && prev.id === id
+          ? { ...prev, handled: nextHandled, status: nextHandled ? "Replied" : "New" }
+          : prev
+      );
     }
   }
 
   async function handleDelete(id, name) {
     if (!confirm(`Are you sure you want to delete message from ${name}?`)) return;
 
-    setEnquiries((prev) => prev.filter((e) => e.id !== id));
-
-    if (!id.startsWith("enq-")) {
-      try {
-        await api.delete(`/enquiries/${id}`, { auth: true });
-      } catch (err) {
-        console.warn("Error deleting enquiry:", err.message);
-      }
+    const success = await apiDeleteEnquiry(id);
+    if (success) {
+      setEnquiries((prev) => prev.filter((e) => e.id !== id));
+      setViewingEnquiry((prev) => (prev && prev.id === id ? null : prev));
     }
   }
-
-  const filteredEnquiries = enquiries.filter((item) => {
-    const matchesFilter =
-      filter === "All" || item.status.toLowerCase() === filter.toLowerCase();
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      item.name.toLowerCase().includes(term) ||
-      item.email.toLowerCase().includes(term) ||
-      item.message.toLowerCase().includes(term);
-    return matchesFilter && matchesSearch;
-  });
 
   return (
     <div className="space-y-6 pb-12">
@@ -169,13 +126,6 @@ export default function EnquiriesPage() {
             Messages from the website contact form
           </p>
         </div>
-
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center rounded-xl bg-[#E11D48] px-5 py-2.5 text-sm font-medium text-white shadow-xs hover:bg-[#BE123C] transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          Record Inquiry
-        </button>
       </div>
 
       {/* Filter & Search Bar */}
@@ -186,7 +136,7 @@ export default function EnquiriesPage() {
             return (
               <button
                 key={tab}
-                onClick={() => setFilter(tab)}
+                onClick={() => handleFilterChange(tab)}
                 className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   isActive
                     ? "bg-[#18181B] text-white shadow-xs"
@@ -209,12 +159,16 @@ export default function EnquiriesPage() {
 
       {/* Enquiries Feed / Cards */}
       <div className="space-y-3.5">
-        {filteredEnquiries.length === 0 ? (
+        {loading ? (
+          <div className="rounded-2xl border border-[#F3E2EC] bg-white p-10 text-center text-xs text-gray-400">
+            Loading enquiries...
+          </div>
+        ) : enquiries.length === 0 ? (
           <div className="rounded-2xl border border-[#F3E2EC] bg-white p-10 text-center text-xs text-gray-400">
             No enquiries found matching your criteria.
           </div>
         ) : (
-          filteredEnquiries.map((item) => {
+          enquiries.map((item) => {
             const initial = item.name ? item.name.charAt(0).toUpperCase() : "?";
 
             return (
@@ -280,7 +234,7 @@ export default function EnquiriesPage() {
 
                       {/* 2. Reply via Email */}
                       <a
-                        href={`mailto:${item.email}?subject=Regarding%20your%20inquiry%20at%20Harmony%20Music%20School`}
+                        href={`mailto:${item.email}?subject=Regarding%20your%20inquiry%20at%20Synchrocity%20Music%20School`}
                         title="Reply via Email"
                         className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FDEEF5] transition-colors cursor-pointer"
                       >
@@ -308,86 +262,7 @@ export default function EnquiriesPage() {
         )}
       </div>
 
-      {/* Record Inquiry Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-[#F3E2EC]">
-            <h3 className="font-serif text-xl font-bold text-gray-900 mb-4">
-              Record New Inquiry
-            </h3>
-            <form onSubmit={handleAddEnquiry} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Sender Name
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Meenakshi Sundaram"
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    required
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="e.g. name@example.com"
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+91..."
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Message / Inquiry Details
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={form.message}
-                  onChange={(e) => setForm({ ...form, message: e.target.value })}
-                  placeholder="Inquiry about weekend courses, trials, etc."
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#E11D48] px-4 py-2 text-sm font-medium text-white hover:bg-[#BE123C] cursor-pointer"
-                >
-                  Save Inquiry
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
 
       {/* View Full Inquiry Modal */}
       {viewingEnquiry && (
@@ -408,13 +283,7 @@ export default function EnquiriesPage() {
                 </div>
               </div>
               <button
-                onClick={() => {
-                  toggleStatus(viewingEnquiry.id);
-                  setViewingEnquiry((prev) => ({
-                    ...prev,
-                    status: prev.status === "New" ? "Replied" : "New",
-                  }));
-                }}
+                onClick={() => toggleStatus(viewingEnquiry.id)}
                 className="cursor-pointer"
               >
                 <span
@@ -438,7 +307,7 @@ export default function EnquiriesPage() {
 
             <div className="flex items-center justify-between pt-2">
               <a
-                href={`mailto:${viewingEnquiry.email}?subject=Regarding%20your%20inquiry%20at%20Harmony%20Music%20School`}
+                href={`mailto:${viewingEnquiry.email}?subject=Regarding%20your%20inquiry%20at%20Synchrocity%20Music%20School`}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#E11D48] px-4 py-2 text-xs font-semibold text-white hover:bg-[#BE123C] cursor-pointer"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

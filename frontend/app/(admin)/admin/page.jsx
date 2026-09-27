@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { apiGetDashboardOverview } from "@/Api/admin/adminApi";
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState(null);
@@ -12,16 +12,11 @@ export default function AdminDashboardPage() {
     let cancelled = false;
 
     async function fetchDashboard() {
-      try {
-        const result = await api.get("/admin/overview", { auth: true });
-        if (!cancelled && result) {
-          setData(result);
-        }
-      } catch (err) {
-        console.warn("Could not fetch live admin overview, using fallback data:", err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
+      const result = await apiGetDashboardOverview();
+      if (!cancelled && result) {
+        setData(result);
       }
+      if (!cancelled) setLoading(false);
     }
 
     fetchDashboard();
@@ -31,73 +26,50 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-  // Stats from live API with seamless screenshot fallbacks
+  // Stats come strictly from the live API — 0/₹0 when there's no data yet.
   const stats = {
-    admissions: data?.stats?.admissions?.total || 124,
-    students: data?.stats?.students?.total || 96,
-    revenue: data?.stats?.revenue?.totalRupees
-      ? `₹${data.stats.revenue.totalRupees.toLocaleString("en-IN")}`
-      : "₹2,46,000",
-    orders: data?.stats?.orders?.total || 28,
+    admissions: data?.stats?.admissions?.total ?? 0,
+    students: data?.stats?.students?.total ?? 0,
+    revenue: `₹${(data?.stats?.revenue?.totalRupees ?? 0).toLocaleString("en-IN")}`,
+    orders: data?.stats?.orders?.total ?? 0,
   };
 
-  // Recent Admissions: Combine live records with design template
-  const defaultAdmissions = [
-    { name: "Aarav Sharma", class: "Guitar", date: "28 Apr 2025", status: "Approved", payment: "₹2,000" },
-    { name: "Diya Patel", class: "Piano", date: "27 Apr 2025", status: "Pending", payment: "₹2,500" },
-    { name: "Rohan Mehta", class: "Tabla", date: "26 Apr 2025", status: "Approved", payment: "₹1,800" },
-    { name: "Ananya Singh", class: "Violin", date: "25 Apr 2025", status: "Approved", payment: "₹1,500" },
-    { name: "Kabir Khan", class: "Guitar", date: "24 Apr 2025", status: "Waitlisted", payment: "₹2,000" },
-  ];
+  const recentAdmissions = (data?.recent?.admissions || []).map((adm) => ({
+    name: adm.studentName,
+    class: adm.class?.name || "—",
+    date: new Date(adm.createdAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+    status:
+      adm.status === "APPROVED"
+        ? "Approved"
+        : adm.status === "PENDING"
+        ? "Pending"
+        : adm.status === "REJECTED"
+        ? "Rejected"
+        : "Waitlisted",
+    payment: adm.payment?.amount
+      ? `₹${Math.round(adm.payment.amount / 100).toLocaleString("en-IN")}`
+      : adm.feePlan?.amount
+      ? `₹${Math.round(adm.feePlan.amount / 100).toLocaleString("en-IN")}`
+      : "—",
+  }));
 
-  const recentAdmissions =
-    data?.recent?.admissions && data.recent.admissions.length > 0
-      ? data.recent.admissions.map((adm) => ({
-          name: adm.studentName,
-          class: adm.class?.name || "Guitar",
-          date: new Date(adm.createdAt).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-          status:
-            adm.status === "APPROVED"
-              ? "Approved"
-              : adm.status === "PENDING"
-              ? "Pending"
-              : "Waitlisted",
-          payment: adm.payment?.amount
-            ? `₹${Math.round(adm.payment.amount / 100).toLocaleString("en-IN")}`
-            : adm.feePlan?.amount
-            ? `₹${Math.round(adm.feePlan.amount / 100).toLocaleString("en-IN")}`
-            : "₹2,000",
-        }))
-      : defaultAdmissions;
-
-  // Recent Orders: Combine live records with design template
-  const defaultOrders = [
-    { name: "Neha Kapoor", product: "Guitar Book", amount: "₹499", status: "Paid", date: "28 Apr 2025" },
-    { name: "Sahil Verma", product: "Piano Book", amount: "₹599", status: "Paid", date: "27 Apr 2025" },
-    { name: "Riddhi Das", product: "Tabla Set", amount: "₹8,000", status: "Paid", date: "26 Apr 2025" },
-    { name: "Arjun Iyer", product: "Acoustic Guitar", amount: "₹12,000", status: "Pending", date: "25 Apr 2025" },
-  ];
-
-  const recentOrders =
-    data?.recent?.orders && data.recent.orders.length > 0
-      ? data.recent.orders.map((ord) => ({
-          name: ord.buyerName,
-          product: ord.product?.name || "Guitar Book",
-          amount: ord.product?.price
-            ? `₹${Math.round(ord.product.price / 100).toLocaleString("en-IN")}`
-            : "₹499",
-          status: ord.status === "PAID" ? "Paid" : "Pending",
-          date: new Date(ord.createdAt).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-        }))
-      : defaultOrders;
+  const recentOrders = (data?.recent?.orders || []).map((ord) => ({
+    name: ord.buyerName,
+    product: ord.product?.name || "—",
+    amount: ord.product?.price
+      ? `₹${Math.round(ord.product.price / 100).toLocaleString("en-IN")}`
+      : "—",
+    status: ord.status === "PAID" ? "Paid" : ord.status === "PENDING" ? "Pending" : ord.status,
+    date: new Date(ord.createdAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+  }));
 
   function renderStatusBadge(status) {
     if (status === "Approved" || status === "Paid") {
@@ -116,7 +88,7 @@ export default function AdminDashboardPage() {
     }
     return (
       <span className="inline-flex items-center justify-center rounded-full bg-[#FFEDD5] px-3.5 py-0.5 text-xs font-medium text-[#C2410C]">
-        Waitlisted
+        {status}
       </span>
     );
   }
@@ -134,14 +106,13 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* 4 Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 sm:gap-5">
         {/* Total Admissions */}
         <div className="rounded-2xl border border-[#F3E2EC] bg-white p-5 shadow-xs transition-shadow hover:shadow-sm">
           <p className="text-xs font-medium text-gray-500">Total Admissions</p>
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {stats.admissions}
           </p>
-          <p className="mt-1 text-xs font-semibold text-emerald-600">+12%</p>
         </div>
 
         {/* Total Students */}
@@ -150,7 +121,6 @@ export default function AdminDashboardPage() {
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {stats.students}
           </p>
-          <p className="mt-1 text-xs font-semibold text-emerald-600">+6%</p>
         </div>
 
         {/* Total Revenue */}
@@ -159,7 +129,6 @@ export default function AdminDashboardPage() {
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {stats.revenue}
           </p>
-          <p className="mt-1 text-xs font-semibold text-emerald-600">+15%</p>
         </div>
 
         {/* Shop Orders */}
@@ -168,7 +137,6 @@ export default function AdminDashboardPage() {
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {stats.orders}
           </p>
-          <p className="mt-1 text-xs font-semibold text-emerald-600">+20%</p>
         </div>
       </div>
 
@@ -198,7 +166,14 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9EBF2] text-sm">
-              {recentAdmissions.map((row, idx) => (
+              {recentAdmissions.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-gray-400">
+                    No admissions yet.
+                  </td>
+                </tr>
+              ) : (
+              recentAdmissions.map((row, idx) => (
                 <tr key={idx} className="hover:bg-[#FFF7FB]/80 transition-colors">
                   <td className="px-4 py-3.5 font-medium text-gray-800">
                     {row.name}
@@ -212,7 +187,8 @@ export default function AdminDashboardPage() {
                     {row.payment}
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
@@ -244,7 +220,14 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9EBF2] text-sm">
-              {recentOrders.map((row, idx) => (
+              {recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-gray-400">
+                    No orders yet.
+                  </td>
+                </tr>
+              ) : (
+              recentOrders.map((row, idx) => (
                 <tr key={idx} className="hover:bg-[#FFF7FB]/80 transition-colors">
                   <td className="px-4 py-3.5 font-medium text-gray-800">
                     {row.name}
@@ -260,7 +243,8 @@ export default function AdminDashboardPage() {
                     {row.date}
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

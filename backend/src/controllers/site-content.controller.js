@@ -1,6 +1,7 @@
 import { prisma } from "../config/db.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { invalidate } from "../utils/cache.js";
 
 export const listSiteContent = asyncHandler(async (req, res) => {
   const content = await prisma.siteContent.findMany({ orderBy: { key: "asc" } });
@@ -14,5 +15,6 @@ export const upsertSiteContent = asyncHandler(async (req, res) => {
     update: { value },
     create: { key, value },
   });
+  invalidate("site-content");
   return ApiResponse(res, 200, content);
 });

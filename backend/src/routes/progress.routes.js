@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-router.get("/", listProgress);
+router.get("/", requireAuth, listProgress);
 router.post("/", requireAuth, addProgressNote);
 
 router.patch("/:id", requireAuth, updateProgressNote);

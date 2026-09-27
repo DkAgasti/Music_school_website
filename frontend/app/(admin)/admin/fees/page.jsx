@@ -1,27 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { apiGetFeeStatus, apiSendAllFeeReminders } from "@/Api/admin/adminApi";
+import { apiGetPayments, apiSendFeeReminder, apiDownloadReceipt } from "@/Api/admin/paymentApi";
+import Pagination from "@/components/admin/Pagination";
 
-const DEFAULT_FEE_ROWS = [
-  { id: "fee-1", student: "Aarav Sharma", class: "Guitar, Piano", fee: "₹3,000", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0101", paidDate: "25 Apr 2025", mode: "Online UPI" },
-  { id: "fee-2", student: "Diya Patel", class: "Piano", fee: "₹2,500", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0102", paidDate: "26 Apr 2025", mode: "Credit Card" },
-  { id: "fee-3", student: "Rohan Mehta", class: "Tabla", fee: "₹2,000", dueDate: "01 May 2025", status: "Pending", receiptNo: "—", paidDate: "—", mode: "—" },
-  { id: "fee-4", student: "Ananya Singh", class: "Violin", fee: "₹2,500", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0103", paidDate: "22 Apr 2025", mode: "Cash" },
-  { id: "fee-5", student: "Ishita Rao", class: "Vocals", fee: "₹2,000", dueDate: "01 May 2025", status: "Pending", receiptNo: "—", paidDate: "—", mode: "—" },
-  { id: "fee-6", student: "Vivaan Joshi", class: "Drums", fee: "₹2,500", dueDate: "01 May 2025", status: "Pending", receiptNo: "—", paidDate: "—", mode: "—" },
-  { id: "fee-7", student: "Meera Nair", class: "Piano", fee: "₹2,500", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0104", paidDate: "27 Apr 2025", mode: "Net Banking" },
-  { id: "fee-8", student: "Kabir Khan", class: "Guitar", fee: "₹2,000", dueDate: "01 May 2025", status: "Pending", receiptNo: "—", paidDate: "—", mode: "—" },
-  { id: "fee-9", student: "Tanvi Shah", class: "Vocals", fee: "₹2,000", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0105", paidDate: "20 Apr 2025", mode: "Online UPI" },
-  { id: "fee-10", student: "Kunal Puri", class: "Violin", fee: "₹2,500", dueDate: "01 May 2025", status: "Paid", receiptNo: "REC-2025-0106", paidDate: "24 Apr 2025", mode: "Cash" },
-];
+const PAGE_SIZE = 20;
 
 export default function FeesPage() {
-  const [feeRows, setFeeRows] = useState(DEFAULT_FEE_ROWS);
+  // Real per-student monthly fee data, loaded from GET /api/admin/fee-status.
+  const [feeRows, setFeeRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [monthLabel, setMonthLabel] = useState("");
   const [filter, setFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(null);
-  const [editingFee, setEditingFee] = useState(null);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [isSendingAllReminders, setIsSendingAllReminders] = useState(false);
 
   const [collectForm, setCollectForm] = useState({
     student: "",
@@ -32,51 +30,130 @@ export default function FeesPage() {
     mode: "Cash",
   });
 
-  const [editForm, setEditForm] = useState({
-    student: "",
-    class: "Guitar",
-    fee: "₹2,500",
-    dueDate: "01 May 2025",
-    status: "Paid",
-    mode: "Cash",
-  });
-
   const [stats, setStats] = useState({
-    collected: "₹48,500",
-    pendingDues: "₹6,500",
-    pendingCount: 4,
+    collected: "₹0",
+    pendingDues: "₹0",
+    pendingCount: 0,
   });
 
+  // Load the real per-student monthly fee report from the backend, and refetch
+  // whenever the status filter pill or page changes (the backend supports
+  // filtering by status and paginates the underlying enrollment scan).
   useEffect(() => {
-    async function loadFeeStatus() {
-      try {
-        const res = await api.get("/admin/fee-status", { auth: true });
-        if (res && res.students && res.students.length > 0) {
-          const mapped = res.students.map((s, idx) => ({
-            id: s.studentId,
-            student: s.studentName,
-            class: s.className,
-            fee: `₹${s.feeRupees?.toLocaleString("en-IN") || "2,500"}`,
-            dueDate: s.dueDate || "01 May 2025",
-            status: s.status,
-            receiptNo: s.status === "Paid" ? `REC-2025-0${100 + idx}` : "—",
-            paidDate: s.status === "Paid" ? "26 Apr 2025" : "—",
-            mode: s.status === "Paid" ? "Online UPI" : "—",
-          }));
-          setFeeRows(mapped);
-          setStats({
-            collected: `₹${(res.collectedThisMonthRupees || 48500).toLocaleString("en-IN")}`,
-            pendingDues: `₹${(res.pendingDuesRupees || 6500).toLocaleString("en-IN")}`,
-            pendingCount: res.studentsPendingCount ?? 4,
-          });
-        }
-      } catch (err) {
-        console.warn("Using template fee data:", err.message);
-      }
-    }
-    loadFeeStatus();
-  }, []);
+    let ignore = false;
 
+    async function loadFeeStatus() {
+      setIsLoading(true);
+      const statusParam = filter === "All" ? undefined : filter.toLowerCase();
+      const res = await apiGetFeeStatus({ status: statusParam, page, limit: PAGE_SIZE });
+      // apiGetFeeStatus already toasts on failure; a null result just means "show nothing".
+      if (ignore) return;
+
+      if (res) {
+        const mapped = (res.students || []).map((s) => ({
+          // A student can have more than one enrollment (multiple classes),
+          // each its own row — enrollmentId is the actually-unique key here,
+          // studentId alone would collide across a student's rows.
+          id: s.enrollmentId,
+          studentId: s.studentId,
+          enrollmentId: s.enrollmentId,
+          student: s.studentName,
+          email: s.email,
+          class: s.className,
+          fee: `₹${(s.feeRupees ?? 0).toLocaleString("en-IN")}`,
+          dueDate: s.dueDate || "—",
+          status: s.status,
+          paymentId: s.paymentId,
+          // The fee-status endpoint has no receipt number or paid date — these
+          // stay placeholders unless the optional payments enrichment below
+          // fills them in. Payment mode isn't stored anywhere either, but
+          // every real payment in this app goes through Razorpay online
+          // (there's no persisted cash/manual path), so a Paid row's mode is
+          // always known even without a dedicated field.
+          receiptNo: "—",
+          paidDate: "—",
+          mode: s.status === "Paid" ? "Online (Razorpay)" : "—",
+        }));
+        setFeeRows(mapped);
+        setMonthLabel(res.month || "");
+        setTotalPages(res.totalPages || 1);
+        setStats({
+          collected: `₹${(res.collectedThisMonthRupees ?? 0).toLocaleString("en-IN")}`,
+          pendingDues: `₹${(res.pendingDuesRupees ?? 0).toLocaleString("en-IN")}`,
+          pendingCount: res.studentsPendingCount ?? 0,
+        });
+
+        // Optional enrichment: for this page's Paid rows, look up their exact
+        // Payment records (by id, not the whole "every paid payment ever"
+        // set) so we can show a real razorpayPaymentId (as a pseudo receipt
+        // number) and a real paid date instead of "—".
+        const paidRowsWithPaymentId = mapped.filter((r) => r.status === "Paid" && r.paymentId);
+        if (paidRowsWithPaymentId.length > 0) {
+          const ids = paidRowsWithPaymentId.map((r) => r.paymentId).join(",");
+          const payments = await apiGetPayments({ ids });
+          if (!ignore && payments) {
+            const paymentById = new Map(payments.map((p) => [p.id, p]));
+            setFeeRows((prev) =>
+              prev.map((row) => {
+                const match = row.paymentId ? paymentById.get(row.paymentId) : null;
+                if (!match) return row;
+                return {
+                  ...row,
+                  receiptNo: match.razorpayPaymentId || "—",
+                  paidDate: match.createdAt
+                    ? new Date(match.createdAt).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—",
+                };
+              })
+            );
+          }
+        }
+      } else {
+        setFeeRows([]);
+      }
+
+      setIsLoading(false);
+    }
+
+    loadFeeStatus();
+    return () => {
+      ignore = true;
+    };
+  }, [filter, page]);
+
+  function handleFilterChange(next) {
+    setFilter(next);
+    setPage(1);
+  }
+
+  async function handleDownloadReceipt(row) {
+    if (!row?.paymentId) return;
+    setDownloadingReceipt(true);
+    await apiDownloadReceipt(row.paymentId);
+    setDownloadingReceipt(false);
+  }
+
+  async function handleSendReminder(row) {
+    setSendingReminderId(row.id);
+    await apiSendFeeReminder({ enrollmentId: row.enrollmentId });
+    setSendingReminderId(null);
+  }
+
+  async function handleSendAllReminders() {
+    setIsSendingAllReminders(true);
+    await apiSendAllFeeReminders();
+    setIsSendingAllReminders(false);
+  }
+
+  // NOTE: the backend has no endpoint to manually record/mark a fee as paid and no endpoint
+  // to edit an existing payment's amount/mode/date, so "Record Payment" and "Edit Fee" below
+  // are kept as local-only UI state changes (not persisted, not sent to any API). Likewise
+  // the "Mark as Paid" toggle and "Delete" action below only mutate local state — refreshing
+  // the page (or changing the filter, which refetches) will restore the real backend data.
   function handleCollectFee(e) {
     e.preventDefault();
     const newFee = {
@@ -97,43 +174,6 @@ export default function FeesPage() {
     setCollectForm({ student: "", class: "Guitar", fee: "₹2,500", dueDate: "01 May 2025", status: "Paid", mode: "Cash" });
   }
 
-  function handleOpenEdit(row) {
-    setEditingFee(row);
-    setEditForm({
-      student: row.student,
-      class: row.class,
-      fee: row.fee.replace("₹", "").trim(),
-      dueDate: row.dueDate,
-      status: row.status,
-      mode: row.mode !== "—" ? row.mode : "Cash",
-    });
-  }
-
-  function handleSaveEdit(e) {
-    e.preventDefault();
-    if (!editingFee) return;
-
-    const cleanFee = editForm.fee.startsWith("₹") ? editForm.fee : `₹${editForm.fee}`;
-    setFeeRows((prev) =>
-      prev.map((item) =>
-        item.id === editingFee.id
-          ? {
-              ...item,
-              student: editForm.student,
-              class: editForm.class,
-              fee: cleanFee,
-              dueDate: editForm.dueDate,
-              status: editForm.status,
-              mode: editForm.status === "Paid" ? editForm.mode : "—",
-              receiptNo: editForm.status === "Paid" && item.receiptNo === "—" ? `REC-2025-${Math.floor(1000 + Math.random() * 9000)}` : item.receiptNo,
-              paidDate: editForm.status === "Paid" && item.paidDate === "—" ? new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : item.paidDate,
-            }
-          : item
-      )
-    );
-    setEditingFee(null);
-  }
-
   function handleMarkAsPaid(id) {
     setFeeRows((prev) =>
       prev.map((item) => {
@@ -152,16 +192,6 @@ export default function FeesPage() {
     );
   }
 
-  function handleDeleteFee(id, student) {
-    if (!confirm(`Are you sure you want to remove fee record for ${student}?`)) return;
-    setFeeRows((prev) => prev.filter((item) => item.id !== id));
-  }
-
-  const filteredRows = feeRows.filter((r) => {
-    if (filter === "All") return true;
-    return r.status.toLowerCase() === filter.toLowerCase();
-  });
-
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header Row */}
@@ -175,6 +205,13 @@ export default function FeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSendAllReminders}
+            disabled={isSendingAllReminders}
+            className="inline-flex items-center justify-center rounded-xl border border-[#F3E2EC] bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-xs hover:bg-[#FBEBF3] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isSendingAllReminders ? "Sending…" : "Remind All Pending"}
+          </button>
           <button
             onClick={() => setShowCollectModal(true)}
             className="inline-flex items-center justify-center rounded-xl bg-[#E11D48] px-5 py-2.5 text-sm font-medium text-white shadow-xs hover:bg-[#BE123C] transition-colors cursor-pointer"
@@ -215,7 +252,7 @@ export default function FeesPage() {
           return (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => handleFilterChange(f)}
               className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                 isActive
                   ? "bg-[#18181B] text-white shadow-xs"
@@ -232,10 +269,10 @@ export default function FeesPage() {
       <div className="rounded-2xl border border-[#F3E2EC] bg-white p-6 shadow-xs">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-serif text-lg font-bold text-gray-900">
-            Monthly Fee Status – May 2025
+            Monthly Fee Status{monthLabel ? ` – ${monthLabel}` : ""}
           </h2>
           <span className="text-xs text-gray-400 font-medium">
-            {filteredRows.length} Students
+            {feeRows.length} Students
           </span>
         </div>
 
@@ -252,14 +289,20 @@ export default function FeesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9EBF2] text-sm">
-              {filteredRows.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-gray-400">
+                    Loading fee status…
+                  </td>
+                </tr>
+              ) : feeRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-xs text-gray-400">
                     No fee records found for {filter}.
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row) => (
+                feeRows.map((row) => (
                   <tr key={row.id} className="hover:bg-[#FFF7FB]/80 transition-colors">
                     <td className="px-4 py-3.5 font-medium text-gray-800">
                       {row.student}
@@ -268,21 +311,15 @@ export default function FeesPage() {
                     <td className="px-4 py-3.5 font-bold text-gray-900">{row.fee}</td>
                     <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{row.dueDate}</td>
                     <td className="px-4 py-3.5 text-center">
-                      <button
-                        onClick={() => handleMarkAsPaid(row.id)}
-                        title="Click to toggle Paid/Pending"
-                        className="cursor-pointer transition-transform hover:scale-105"
-                      >
-                        {row.status === "Paid" ? (
-                          <span className="inline-flex items-center justify-center rounded-full bg-[#E8F8EE] px-3.5 py-0.5 text-xs font-medium text-[#16A34A]">
-                            Paid
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center rounded-full bg-[#FEF3E2] px-3.5 py-0.5 text-xs font-medium text-[#D97706]">
-                            Pending
-                          </span>
-                        )}
-                      </button>
+                      {row.status === "Paid" ? (
+                        <span className="inline-flex items-center justify-center rounded-full bg-[#E8F8EE] px-3.5 py-0.5 text-xs font-medium text-[#16A34A]">
+                          Paid
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center rounded-full bg-[#FEF3E2] px-3.5 py-0.5 text-xs font-medium text-[#D97706]">
+                          Pending
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
@@ -300,11 +337,11 @@ export default function FeesPage() {
                           </button>
                         )}
 
-                        {/* If Pending: Mark as Paid quick button */}
+                        {/* If Pending: Mark as Paid quick button (local-only, see note above) */}
                         {row.status !== "Paid" && (
                           <button
                             onClick={() => handleMarkAsPaid(row.id)}
-                            title="Mark as Paid"
+                            title="Mark as Paid (local only, not saved)"
                             className="h-7 w-7 rounded-lg flex items-center justify-center text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -313,27 +350,19 @@ export default function FeesPage() {
                           </button>
                         )}
 
-                        {/* Edit Record */}
-                        <button
-                          onClick={() => handleOpenEdit(row)}
-                          title="Edit Fee Record"
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FDEEF5] transition-colors cursor-pointer"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-
-                        {/* Delete Record */}
-                        <button
-                          onClick={() => handleDeleteFee(row.id, row.student)}
-                          title="Delete Fee Record"
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#E11D48] hover:bg-[#FFE4E6] transition-colors cursor-pointer"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        {/* If Pending: Send Reminder email via the real /api/payments/remind endpoint */}
+                        {row.status !== "Paid" && (
+                          <button
+                            onClick={() => handleSendReminder(row)}
+                            disabled={sendingReminderId === row.id}
+                            title="Send Fee Reminder Email"
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -342,15 +371,21 @@ export default function FeesPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       {/* Record / Collect Payment Modal */}
       {showCollectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-[#F3E2EC]">
-            <h3 className="font-serif text-xl font-bold text-gray-900 mb-4">
+            <h3 className="font-serif text-xl font-bold text-gray-900 mb-1">
               Record Student Fee
             </h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Note: there is no backend endpoint to record a manual/cash payment yet, so this
+              only updates the table on this screen and is not saved.
+            </p>
             <form onSubmit={handleCollectFee} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -457,112 +492,6 @@ export default function FeesPage() {
         </div>
       )}
 
-      {/* Edit Fee Modal */}
-      {editingFee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-[#F3E2EC]">
-            <h3 className="font-serif text-xl font-bold text-gray-900 mb-4">
-              Edit Fee Record
-            </h3>
-            <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Student Name
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={editForm.student}
-                  onChange={(e) => setEditForm({ ...editForm, student: e.target.value })}
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Class
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.class}
-                    onChange={(e) => setEditForm({ ...editForm, class: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Amount (₹)
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={editForm.fee}
-                    onChange={(e) => setEditForm({ ...editForm, fee: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
-                  >
-                    <option value="Paid">Paid</option>
-                    <option value="Pending">Pending</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Payment Mode
-                  </label>
-                  <select
-                    value={editForm.mode}
-                    onChange={(e) => setEditForm({ ...editForm, mode: e.target.value })}
-                    className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="Online UPI">Online UPI</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Net Banking">Net Banking</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Due Date
-                </label>
-                <input
-                  type="text"
-                  value={editForm.dueDate}
-                  onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingFee(null)}
-                  className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#E11D48] px-4 py-2 text-sm font-medium text-white hover:bg-[#BE123C] cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* View Payment Receipt Modal */}
       {viewingReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -592,7 +521,7 @@ export default function FeesPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Billing Period</span>
-                <span className="font-medium text-gray-800">May 2025</span>
+                <span className="font-medium text-gray-800">{monthLabel || "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Payment Mode</span>
@@ -610,10 +539,12 @@ export default function FeesPage() {
 
             <div className="flex items-center justify-end gap-3 pt-4">
               <button
-                onClick={() => window.print()}
-                className="rounded-xl border border-[#F3E2EC] px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                onClick={() => handleDownloadReceipt(viewingReceipt)}
+                disabled={downloadingReceipt || !viewingReceipt.paymentId}
+                title={!viewingReceipt.paymentId ? "No payment record found for this receipt" : undefined}
+                className="rounded-xl border border-[#F3E2EC] px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Print Receipt
+                {downloadingReceipt ? "Downloading…" : "Download Receipt"}
               </button>
               <button
                 onClick={() => setViewingReceipt(null)}

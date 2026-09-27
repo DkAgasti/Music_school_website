@@ -1,12 +1,30 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Card from "@/components/ui/Card";
-import { useAdminList } from "@/lib/useAdminList";
+import { apiGetStudentById } from "@/Api/admin/studentApi";
 
 export default function StudentProfilePage() {
   const { id } = useParams();
-  const { data: student, loading } = useAdminList(`/students/${id}`);
+  const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function loadStudent() {
+      setLoading(true);
+      const res = await apiGetStudentById(id);
+      if (active) {
+        setStudent(res);
+        setLoading(false);
+      }
+    }
+    if (id) loadStudent();
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   if (loading) return <p className="text-sm text-gray-500">Loading...</p>;
   if (!student?.id) return <p className="text-sm text-gray-500">Student not found.</p>;
@@ -19,7 +37,10 @@ export default function StudentProfilePage() {
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Card>
           <h2 className="font-semibold text-gray-900">Attendance</h2>
-          <p className="mt-1 text-sm text-gray-500">{student.attendance?.length ?? 0} records</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {student.attendance?.length ?? 0} records
+            {student.attendanceStats ? ` · ${student.attendanceStats.attendancePercentage}%` : ""}
+          </p>
         </Card>
         <Card>
           <h2 className="font-semibold text-gray-900">Progress</h2>

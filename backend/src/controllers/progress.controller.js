@@ -4,10 +4,10 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const addProgressNote = asyncHandler(async (req, res, next) => {
-  const { studentId, note, rating, date } = req.body;
+  const { enrollmentId, note, rating, date } = req.body;
 
-  if (!studentId || !note) {
-    return next(new ApiError(400, "studentId and note are required"));
+  if (!enrollmentId || !note) {
+    return next(new ApiError(400, "enrollmentId and note are required"));
   }
 
   // Get authorId from authenticated admin, or fallback to first admin
@@ -20,14 +20,14 @@ export const addProgressNote = asyncHandler(async (req, res, next) => {
 
   const progressRecord = await prisma.progressNote.create({
     data: {
-      studentId,
+      enrollmentId,
       note,
-      rating: rating ? parseInt(rating, 10) : null,
+      rating: rating !== undefined && rating !== null && rating !== "" ? parseInt(rating, 10) : null,
       date: date ? new Date(date) : new Date(),
       authorId,
     },
     include: {
-      student: { select: { id: true, name: true } },
+      enrollment: { include: { student: { select: { id: true, name: true } } } },
       author: { select: { id: true, name: true } },
     },
   });
@@ -36,36 +36,64 @@ export const addProgressNote = asyncHandler(async (req, res, next) => {
 });
 
 export const listProgress = asyncHandler(async (req, res) => {
-  const { studentId } = req.query;
-  const where = studentId ? { studentId } : {};
+  const { studentId, enrollmentId, search, page, limit } = req.query;
 
-  const notes = await prisma.progressNote.findMany({
-    where,
-    include: {
-      author: { select: { id: true, name: true } },
-      student: {
-        select: {
-          id: true,
-          name: true,
-          class: { select: { id: true, name: true } },
+  const where = {};
+  if (enrollmentId) where.enrollmentId = enrollmentId;
+  if (studentId) where.enrollment = { studentId };
+  if (search) {
+    where.OR = [
+      { note: { contains: search, mode: "insensitive" } },
+      { enrollment: { student: { name: { contains: search, mode: "insensitive" } } } },
+      { enrollment: { class: { name: { contains: search, mode: "insensitive" } } } },
+    ];
+  }
+
+  // No `page` param → unpaginated array, kept for any existing caller that
+  // still expects a plain list.
+  const isPaginated = page !== undefined;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+  const [notes, total] = await Promise.all([
+    prisma.progressNote.findMany({
+      where,
+      include: {
+        author: { select: { id: true, name: true } },
+        enrollment: {
+          include: {
+            student: { select: { id: true, name: true } },
+            class: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-    orderBy: { date: "desc" },
-  });
+      orderBy: { date: "desc" },
+      ...(isPaginated ? { skip: (pageNum - 1) * pageSize, take: pageSize } : {}),
+    }),
+    isPaginated ? prisma.progressNote.count({ where }) : Promise.resolve(null),
+  ]);
 
   const formattedNotes = notes.map((n) => ({
     id: n.id,
     date: n.date,
     note: n.note,
     rating: n.rating,
-    className: n.student?.class?.name || "Music Course",
+    className: n.enrollment?.class?.name || "Music Course",
     teacherName: n.author?.name || "Instructor",
-    studentId: n.student?.id,
-    studentName: n.student?.name,
+    studentId: n.enrollment?.student?.id,
+    studentName: n.enrollment?.student?.name,
+    enrollmentId: n.enrollmentId,
   }));
 
-  return ApiResponse(res, 200, formattedNotes);
+  if (!isPaginated) return ApiResponse(res, 200, formattedNotes);
+
+  return ApiResponse(res, 200, {
+    items: formattedNotes,
+    total,
+    page: pageNum,
+    limit: pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
 });
 
 export const updateProgressNote = asyncHandler(async (req, res, next) => {
@@ -76,7 +104,7 @@ export const updateProgressNote = asyncHandler(async (req, res, next) => {
 
   const data = {};
   if (note !== undefined) data.note = note;
-  if (rating !== undefined) data.rating = rating ? parseInt(rating, 10) : null;
+  if (rating !== undefined) data.rating = rating !== null && rating !== "" ? parseInt(rating, 10) : null;
   if (date !== undefined) data.date = new Date(date);
 
   const updated = await prisma.progressNote.update({
@@ -84,7 +112,7 @@ export const updateProgressNote = asyncHandler(async (req, res, next) => {
     data,
     include: {
       author: { select: { id: true, name: true } },
-      student: { select: { id: true, name: true } },
+      enrollment: { include: { student: { select: { id: true, name: true } } } },
     },
   });
 

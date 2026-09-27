@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireStudentAuth } from "../middleware/auth.js";
 import {
   listStudents,
   getStudent,
@@ -7,13 +7,16 @@ import {
   updateStudent,
   getStudentHistory,
   deleteStudent,
-  trackStudentProgress,
+  getMyProfile,
+  updateMyProfile,
 } from "../controllers/student.controller.js";
 
 const router = Router();
 
-// Public Student Portal: Student checks own attendance & progress by phone or email
-router.get("/track", trackStudentProgress);
+// Logged-in Student Portal (email+password login) — must be registered
+// before "/:id" so "me" isn't swallowed as an admin :id lookup.
+router.get("/me", requireStudentAuth, getMyProfile);
+router.patch("/me", requireStudentAuth, updateMyProfile);
 
 // Admin Student Management
 router.get("/", requireAuth, listStudents);

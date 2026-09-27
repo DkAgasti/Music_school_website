@@ -1,112 +1,142 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { apiGetClasses } from "@/Api/admin/classApi";
+import {
+  apiGetBatches,
+  apiCreateBatch,
+  apiUpdateBatch,
+  apiDeleteBatch,
+} from "@/Api/admin/batchApi";
+import Pagination from "@/components/admin/Pagination";
 
-const DEFAULT_BATCHES = [
-  { id: "b-1", batch: "G-EVE-1", class: "Guitar", days: "Mon & Wed", timing: "5:00 PM – 6:00 PM", teacher: "Amit Singh", seats: "5 left", capacity: 15 },
-  { id: "b-2", batch: "G-EVE-2", class: "Guitar", days: "Tue & Thu", timing: "6:00 PM – 7:00 PM", teacher: "Amit Singh", seats: "2 left", capacity: 15 },
-  { id: "b-3", batch: "P-EVE-1", class: "Piano", days: "Tue & Thu", timing: "4:00 PM – 5:00 PM", teacher: "Sneha Verma", seats: "4 left", capacity: 12 },
-  { id: "b-4", batch: "V-MOR-1", class: "Vocals", days: "Mon & Fri", timing: "10:00 AM – 11:00 AM", teacher: "Ishaan Kapoor", seats: "8 left", capacity: 15 },
-  { id: "b-5", batch: "T-WKD-1", class: "Tabla", days: "Sat", timing: "9:00 AM – 10:30 AM", teacher: "Rohit Kulkarni", seats: "6 left", capacity: 12 },
-  { id: "b-6", batch: "M-WKD-1", class: "Music Theory", days: "Sat", timing: "11:00 AM – 12:00 PM", teacher: "Priya Nair", seats: "10 left", capacity: 20 },
-  { id: "b-7", batch: "D-EVE-1", class: "Drums", days: "Wed & Fri", timing: "6:00 PM – 7:00 PM", teacher: "Arjun Das", seats: "3 left", capacity: 10 },
-];
+const PAGE_SIZE = 20;
+
+// Maps a raw batch record from the backend into the shape this page renders.
+function mapBatch(b) {
+  const capacity = b.capacity ?? 10;
+  const enrolled = b._count?.enrollments ?? b.enrollments?.length ?? 0;
+  return {
+    id: b.id,
+    classId: b.classId,
+    batch: b.name,
+    className: b.class?.name || "—",
+    schedule: b.schedule || "",
+    teacher: b.teacherName || b.class?.teachers?.[0]?.name || "Unassigned",
+    capacity,
+    seatsLeft: b.seatsLeft ?? Math.max(capacity - enrolled, 0),
+    active: b.active ?? true,
+  };
+}
+
+const EMPTY_ADD_FORM = { name: "", classId: "", schedule: "", capacity: 15 };
+const EMPTY_EDIT_FORM = { name: "", classId: "", schedule: "", capacity: 15 };
 
 export default function BatchesPage() {
-  const [batches, setBatches] = useState(DEFAULT_BATCHES);
+  const [batches, setBatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [classesList, setClassesList] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
 
-  const [addForm, setAddForm] = useState({ batch: "", class: "Guitar", days: "Mon & Wed", timing: "5:00 PM – 6:00 PM", teacher: "", capacity: 15 });
-  const [editForm, setEditForm] = useState({ batch: "", class: "Guitar", days: "Mon & Wed", timing: "", teacher: "", capacity: 15 });
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
+
+  async function loadBatches(pageToLoad) {
+    const res = await apiGetBatches(undefined, { page: pageToLoad, limit: PAGE_SIZE });
+    if (res && Array.isArray(res.items)) {
+      setBatches(res.items.map(mapBatch));
+      setTotalPages(res.totalPages);
+    }
+  }
 
   useEffect(() => {
-    async function loadBatches() {
-      try {
-        const res = await api.get("/classes/batches/all");
-        if (res && Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((b) => ({
-            id: b.id,
-            batch: b.name,
-            class: b.class?.name || "Guitar",
-            days: b.schedule?.split(" ")[0] || "Mon & Wed",
-            timing: b.schedule?.includes("at") ? b.schedule.split("at")[1] : "5:00 PM – 6:00 PM",
-            teacher: b.teacher?.name || "Instructor",
-            seats: `${b.capacity || 10} left`,
-            capacity: b.capacity || 15,
-          }));
-          setBatches(mapped);
-        }
-      } catch (err) {
-        console.warn("Using template batches:", err.message);
+    async function init() {
+      setLoading(true);
+      const [batchesRes, classesRes] = await Promise.all([
+        apiGetBatches(undefined, { page, limit: PAGE_SIZE }),
+        apiGetClasses(),
+      ]);
+      if (batchesRes && Array.isArray(batchesRes.items)) {
+        setBatches(batchesRes.items.map(mapBatch));
+        setTotalPages(batchesRes.totalPages);
       }
+      if (Array.isArray(classesRes)) {
+        const mappedClasses = classesRes.map((c) => ({ id: c.id, name: c.name }));
+        setClassesList(mappedClasses);
+        setAddForm((prev) => ({ ...prev, classId: prev.classId || mappedClasses[0]?.id || "" }));
+      }
+      setLoading(false);
     }
-    loadBatches();
-  }, []);
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
-  // Add new batch (prepends to top)
-  function handleAddBatch(e) {
+  // Add new batch
+  async function handleAddBatch(e) {
     e.preventDefault();
-    const newEntry = {
-      id: `b-${Date.now()}`,
-      batch: addForm.batch || `B-EVE-${batches.length + 1}`,
-      class: addForm.class,
-      days: addForm.days,
-      timing: addForm.timing,
-      teacher: addForm.teacher || "Faculty Instructor",
-      seats: `${addForm.capacity} left`,
-      capacity: addForm.capacity,
-    };
-    setBatches([newEntry, ...batches]);
+    if (!addForm.classId) return;
+
+    const created = await apiCreateBatch({
+      classId: addForm.classId,
+      name: addForm.name,
+      schedule: addForm.schedule,
+      capacity: Number(addForm.capacity) || 15,
+      active: true,
+    });
+    if (!created) return;
+
     setShowAddModal(false);
-    setAddForm({ batch: "", class: "Guitar", days: "Mon & Wed", timing: "5:00 PM – 6:00 PM", teacher: "", capacity: 15 });
+    setAddForm({ ...EMPTY_ADD_FORM, classId: classesList[0]?.id || "" });
+    setPage(1);
+    await loadBatches(1);
   }
 
   // Open Edit
   function handleOpenEdit(b) {
     setEditingBatch(b);
     setEditForm({
-      batch: b.batch,
-      class: b.class,
-      days: b.days,
-      timing: b.timing,
-      teacher: b.teacher,
+      name: b.batch,
+      classId: b.classId || "",
+      schedule: b.schedule,
       capacity: b.capacity || 15,
     });
   }
 
   // Save Edit
-  function handleSaveEdit(e) {
+  async function handleSaveEdit(e) {
     e.preventDefault();
     if (!editingBatch) return;
 
-    setBatches((prev) =>
-      prev.map((b) =>
-        b.id === editingBatch.id
-          ? {
-              ...b,
-              batch: editForm.batch,
-              class: editForm.class,
-              days: editForm.days,
-              timing: editForm.timing,
-              teacher: editForm.teacher,
-              capacity: editForm.capacity,
-              seats: `${editForm.capacity} left`,
-            }
-          : b
-      )
-    );
+    const updated = await apiUpdateBatch(editingBatch.id, {
+      classId: editForm.classId,
+      name: editForm.name,
+      schedule: editForm.schedule,
+      capacity: Number(editForm.capacity) || 10,
+    });
+    if (!updated) return;
+
     setEditingBatch(null);
+    await loadBatches(page);
+  }
+
+  // Toggle Active / Inactive
+  async function handleToggleStatus(row) {
+    const updated = await apiUpdateBatch(row.id, { active: !row.active });
+    if (!updated) return;
+    setBatches((prev) => prev.map((b) => (b.id === row.id ? mapBatch(updated) : b)));
   }
 
   // Delete Batch
-  function handleDeleteBatch(id, batchName) {
+  async function handleDeleteBatch(id, batchName) {
     if (!confirm(`Are you sure you want to delete batch "${batchName}"?`)) return;
-    setBatches((prev) => prev.filter((b) => b.id !== id));
-    if (!id.startsWith("b-")) {
-      api.delete(`/classes/batches/${id}`, { auth: true }).catch(() => {});
-    }
+
+    const ok = await apiDeleteBatch(id);
+    if (!ok) return;
+
+    await loadBatches(page);
   }
 
   return (
@@ -137,16 +167,20 @@ export default function BatchesPage() {
           </h2>
         </div>
 
+        {loading && batches.length === 0 && (
+          <p className="text-sm text-gray-500 pb-4">Loading batches…</p>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="rounded-xl bg-[#FDEEF5] text-xs font-semibold text-gray-600">
                 <th className="rounded-l-xl px-4 py-3 font-semibold text-gray-600">Batch</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Class</th>
-                <th className="px-4 py-3 font-semibold text-gray-600">Days</th>
-                <th className="px-4 py-3 font-semibold text-gray-600">Timing</th>
+                <th className="px-4 py-3 font-semibold text-gray-600">Schedule</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Teacher</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Seats</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600">Status</th>
                 <th className="rounded-r-xl px-4 py-3 text-right font-semibold text-gray-600">Actions</th>
               </tr>
             </thead>
@@ -156,12 +190,34 @@ export default function BatchesPage() {
                   <td className="px-4 py-3.5 font-bold text-gray-900 font-mono text-xs">
                     {row.batch}
                   </td>
-                  <td className="px-4 py-3.5 text-gray-700">{row.class}</td>
-                  <td className="px-4 py-3.5 text-gray-600">{row.days}</td>
-                  <td className="px-4 py-3.5 text-gray-600">{row.timing}</td>
+                  <td className="px-4 py-3.5 text-gray-700">{row.className}</td>
+                  <td className="px-4 py-3.5 text-gray-600">{row.schedule}</td>
                   <td className="px-4 py-3.5 text-gray-700">{row.teacher}</td>
                   <td className="px-4 py-3.5 font-medium text-gray-700">
-                    {row.seats}
+                    {row.seatsLeft} left
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={row.active}
+                        onClick={() => handleToggleStatus(row)}
+                        title={row.active ? "Active — click to set Inactive" : "Inactive — click to set Active"}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+                          row.active ? "bg-[#16A34A]" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                            row.active ? "translate-x-[18px]" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                      <span className={`text-xs font-medium ${row.active ? "text-[#16A34A]" : "text-gray-500"}`}>
+                        {row.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
@@ -193,6 +249,8 @@ export default function BatchesPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       {/* Edit Batch Modal */}
@@ -210,44 +268,41 @@ export default function BatchesPage() {
                 <input
                   required
                   type="text"
-                  value={editForm.batch}
-                  onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Days
+                  Class
                 </label>
-                <input
+                <select
                   required
-                  type="text"
-                  value={editForm.days}
-                  onChange={(e) => setEditForm({ ...editForm, days: e.target.value })}
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
+                  value={editForm.classId}
+                  onChange={(e) => setEditForm({ ...editForm, classId: e.target.value })}
+                  className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
+                >
+                  <option value="" disabled>
+                    Select a class
+                  </option>
+                  {classesList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Timing
+                  Schedule
                 </label>
                 <input
                   required
                   type="text"
-                  value={editForm.timing}
-                  onChange={(e) => setEditForm({ ...editForm, timing: e.target.value })}
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Teacher
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={editForm.teacher}
-                  onChange={(e) => setEditForm({ ...editForm, teacher: e.target.value })}
+                  value={editForm.schedule}
+                  onChange={(e) => setEditForm({ ...editForm, schedule: e.target.value })}
+                  placeholder="e.g. Mon/Wed/Fri 9:00 AM - 10:30 AM"
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>
@@ -295,9 +350,10 @@ export default function BatchesPage() {
                   Batch Code
                 </label>
                 <input
+                  required
                   type="text"
-                  value={addForm.batch}
-                  onChange={(e) => setAddForm({ ...addForm, batch: e.target.value })}
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
                   placeholder="e.g. G-EVE-3"
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
@@ -307,55 +363,45 @@ export default function BatchesPage() {
                   Class
                 </label>
                 <select
-                  value={addForm.class}
-                  onChange={(e) => setAddForm({ ...addForm, class: e.target.value })}
+                  required
+                  value={addForm.classId}
+                  onChange={(e) => setAddForm({ ...addForm, classId: e.target.value })}
                   className="w-full rounded-xl border border-[#F3E2EC] px-3 py-2 text-sm focus:outline-none focus:border-[#E11D48] bg-white"
                 >
-                  <option value="Guitar">Guitar</option>
-                  <option value="Piano">Piano</option>
-                  <option value="Tabla">Tabla</option>
-                  <option value="Violin">Violin</option>
-                  <option value="Vocals">Vocals</option>
-                  <option value="Drums">Drums</option>
-                  <option value="Music Theory">Music Theory</option>
+                  <option value="" disabled>
+                    Select a class
+                  </option>
+                  {classesList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Days
+                  Schedule
                 </label>
                 <input
                   required
                   type="text"
-                  value={addForm.days}
-                  onChange={(e) => setAddForm({ ...addForm, days: e.target.value })}
-                  placeholder="e.g. Mon & Wed"
+                  value={addForm.schedule}
+                  onChange={(e) => setAddForm({ ...addForm, schedule: e.target.value })}
+                  placeholder="e.g. Mon/Wed/Fri 9:00 AM - 10:30 AM"
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Timing
+                  Capacity (Seats)
                 </label>
                 <input
                   required
-                  type="text"
-                  value={addForm.timing}
-                  onChange={(e) => setAddForm({ ...addForm, timing: e.target.value })}
-                  placeholder="e.g. 5:00 PM – 6:00 PM"
-                  className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Teacher
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={addForm.teacher}
-                  onChange={(e) => setAddForm({ ...addForm, teacher: e.target.value })}
-                  placeholder="e.g. Amit Singh"
+                  type="number"
+                  min="1"
+                  value={addForm.capacity}
+                  onChange={(e) => setAddForm({ ...addForm, capacity: e.target.value })}
+                  placeholder="e.g. 15"
                   className="w-full rounded-xl border border-[#F3E2EC] px-3.5 py-2 text-sm focus:outline-none focus:border-[#E11D48]"
                 />
               </div>

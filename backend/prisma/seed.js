@@ -4,21 +4,26 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@musicschool.com";
-  const adminPassword = process.env.ADMIN_SEED_PASSWORD || "admin123";
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
 
-  await prisma.admin.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: {
-      email: adminEmail,
-      name: "Admin",
-      passwordHash,
-    },
-  });
-
-  console.log(`Admin seeded: ${adminEmail}`);
+  if (adminEmail && adminPassword) {
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    await prisma.admin.upsert({
+      where: { email: adminEmail },
+      update: {},
+      create: {
+        email: adminEmail,
+        name: "Admin",
+        passwordHash,
+      },
+    });
+    console.log(`Admin seeded: ${adminEmail}`);
+  } else {
+    console.log(
+      "Skipped admin seeding: set ADMIN_EMAIL and ADMIN_SEED_PASSWORD in .env only if you need to create a NEW admin account. Existing admin accounts already live in the database and are unaffected."
+    );
+  }
 
   const guitar = await prisma.class.upsert({
     where: { slug: "guitar" },

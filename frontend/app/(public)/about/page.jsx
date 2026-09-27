@@ -2,9 +2,9 @@ import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 
 export const metadata = {
-  title: "About Us - Harmony Music School",
+  title: "About Us - Synchrocity Music School",
   description:
-    "At Harmony Music School, we believe in the power of music to inspire, build confidence, and create a lifelong passion.",
+    "At Synchrocity Music School, we believe in the power of music to inspire, build confidence, and create a lifelong passion.",
 };
 
 export default function AboutPage() {
@@ -27,7 +27,7 @@ export default function AboutPage() {
                   More Than Just Music
                 </h2>
                 <p className="mt-4 text-xs sm:text-sm leading-relaxed text-gray-600 max-w-md">
-                  At Harmony Music School, we believe in the power of music to
+                  At Synchrocity Music School, we believe in the power of music to
                   inspire, build confidence, and create a lifelong passion. Our
                   mission is to provide high-quality, personalized music education
                   in a supportive and creative environment.
@@ -44,7 +44,7 @@ export default function AboutPage() {
             <div className="relative h-full w-full overflow-hidden md:rounded-bl-[40px]">
               <img
                 src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893089/ChatGPT_Image_Sep_14_2026_01_06_58_PM.png"
-                alt="Student playing acoustic guitar at Harmony Music School"
+                alt="Student playing acoustic guitar at Synchrocity Music School"
                 className="h-full w-full object-cover object-[72%_center] select-none pointer-events-none"
               />
               {/* Soft gradient fade on the left to smoothly blend into page background */}
@@ -56,7 +56,7 @@ export default function AboutPage() {
           <div className="md:hidden relative h-[280px] sm:h-[320px] w-full overflow-hidden">
             <img
               src="https://res.cloudinary.com/vpetrpeu/image/upload/v1789893089/ChatGPT_Image_Sep_14_2026_01_06_58_PM.png"
-              alt="Student playing acoustic guitar at Harmony Music School"
+              alt="Student playing acoustic guitar at Synchrocity Music School"
               className="absolute inset-0 h-full w-full object-cover object-[72%_center]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
@@ -68,7 +68,7 @@ export default function AboutPage() {
                 More Than Just Music
               </h2>
               <p className="mt-2 text-xs sm:text-sm leading-relaxed text-white/90 max-w-md">
-                At Harmony Music School, we believe in the power of music to
+                At Synchrocity Music School, we believe in the power of music to
                 inspire, build confidence, and create a lifelong passion.
               </p>
             </div>
@@ -103,7 +103,7 @@ export default function AboutPage() {
                 Our Story
               </h3>
               <p className="text-sm sm:text-[14.5px] leading-relaxed text-gray-600">
-                Founded in 2015, Harmony Music School started with a simple
+                Founded in 2015, Synchrocity Music School started with a simple
                 belief &ndash; that music can change lives. Over the years, we
                 have grown into a trusted learning center, helping hundreds of
                 students discover and develop their musical talents.

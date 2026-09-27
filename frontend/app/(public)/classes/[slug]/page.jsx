@@ -1,11 +1,37 @@
+import { cache } from "react";
 import Link from "next/link";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import AdmissionNowButton from "@/components/public/AdmissionNowButton";
-import { getClassBySlug } from "@/lib/api";
+import { apiGetClassBySlug } from "@/Api/public/classApi";
+
+// generateMetadata and the page body both need this same class — this app's
+// API client uses axios (not the native fetch Next.js auto-dedupes), so
+// without this the same request would fire twice per page load.
+const getClassBySlug = cache(apiGetClassBySlug);
+
+export async function generateMetadata({ params }) {
+  const musicClass = await getClassBySlug(params.slug);
+  if (!musicClass) {
+    return { title: "Class Not Found - Synchrocity Music School" };
+  }
+
+  const title = `${musicClass.name} Classes - Synchrocity Music School`;
+  const description =
+    musicClass.description ||
+    `Learn ${musicClass.name} at Synchrocity Music School — expert instructors, flexible batches, and a free trial class.`;
+
+  return {
+    title,
+    description,
+    openGraph: musicClass.imageUrl
+      ? { title, description, images: [{ url: musicClass.imageUrl }] }
+      : { title, description },
+  };
+}
 
 export default async function ClassDetailPage({ params }) {
-  const musicClass = await getClassBySlug(params.slug).catch(() => null);
+  const musicClass = await getClassBySlug(params.slug);
 
   if (!musicClass) {
     return (
@@ -30,95 +56,94 @@ export default async function ClassDetailPage({ params }) {
     );
   }
 
-  // Data normalization to ensure identical visual rendering with full fallback support
-  const classTitle = musicClass.title || `${musicClass.name} Class`;
-  const classTagline = musicClass.tagline || "Learn. Play. Perform.";
-  const mainImage =
-    musicClass.imageUrl ||
-    musicClass.mainImage ||
-    "/images/classes/guitar-main.png";
-  const heroImage =
-    musicClass.heroImage || "/images/classes/guitar-hero-banner.png";
+  // Data normalization — only real fields from the API are used. Anything
+  // not present in the database is shown as "Not specified" rather than
+  // fabricated placeholder content.
+  const classTitle = musicClass.name;
+  const mainImage = musicClass.imageUrl || null;
+  const heroImage = musicClass.imageUrl || null;
 
-  const aboutDescription =
-    musicClass.aboutText ||
-    musicClass.description ||
-    "Our guitar class is designed for beginners and intermediate learners. You will learn chords, strumming, fingerstyle, and popular songs with step-by-step guidance.";
+  const aboutDescription = musicClass.description || "No description available yet.";
 
-  const syllabusItems = musicClass.syllabusList ||
-    (musicClass.syllabus
-      ? musicClass.syllabus.split(",").map((s) => s.trim())
-      : [
-          "Basic chords and strumming",
-          "Fingerstyle techniques",
-          "Popular songs and progressions",
-          "Music theory basics",
-        ]);
+  const syllabusItems = musicClass.syllabus
+    ? musicClass.syllabus.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
 
-  const teacher =
-    musicClass.teachers?.[0] ||
-    (musicClass.teacher
-      ? musicClass.teacher
-      : {
-          name: "Amit Singh",
-          role: "Guitar Instructor",
-          experience: "10+ Years Experience",
-          photoUrl: "/images/classes/teacher-amit-singh.png",
-        });
+  const teacher = musicClass.teachers?.[0] || null;
 
-  const duration = musicClass.duration || "6 Months";
-  const feeDisplay =
-    musicClass.feeRange ||
-    (musicClass.fee ? `₹${musicClass.fee}/month` : "₹2,000 – ₹3,500/month");
-  const batchTiming =
-    musicClass.batchTiming ||
-    musicClass.batches?.[0]?.schedule ||
-    "Mon & Wed | 5:00 PM – 6:00 PM";
-  const location = musicClass.location || "Main Branch, New Delhi";
-  const availableSeats = musicClass.availableSeats || "5 Seats Left";
+  const primaryFeePlan = musicClass.feePlans?.[0];
+  const primaryBatch = musicClass.batches?.[0];
+
+  const duration = musicClass.durationMonths
+    ? `${musicClass.durationMonths} Month${musicClass.durationMonths > 1 ? "s" : ""}`
+    : "Not specified";
+  const feeDisplay = primaryFeePlan
+    ? `₹${Math.round(primaryFeePlan.amount / 100).toLocaleString("en-IN")}${
+        primaryFeePlan.durationMonths
+          ? ` / ${primaryFeePlan.durationMonths} month${
+              primaryFeePlan.durationMonths > 1 ? "s" : ""
+            }`
+          : ""
+      }`
+    : "Not specified";
+  const batchTiming = primaryBatch?.schedule || "Not specified";
+  const location = "Not specified";
+  const seatsLeft = primaryBatch
+    ? Math.max(primaryBatch.capacity - (primaryBatch._count?.enrollments || 0), 0)
+    : null;
+  const availableSeats =
+    seatsLeft !== null ? `${seatsLeft} Seat${seatsLeft === 1 ? "" : "s"} Left` : "Not specified";
 
   return (
     <>
       <Navbar />
 
-      {/* Hero Banner Section */}
-      <section className="relative w-full border-b border-gray-100 bg-white overflow-hidden md:h-[220px]">
-        {/* Banner graphic: absolute, flush right and full-height on tablet/desktop only */}
-        <div className="hidden md:block absolute right-0 top-0 bottom-0 md:w-3/5 lg:w-1/2 overflow-hidden pointer-events-none">
-          <img
-            src={heroImage}
-            alt={classTitle}
-            className="h-full w-full object-cover object-right"
-          />
+      {/* Hero Banner Section — same pattern as the Classes listing page */}
+      <section className="relative w-full overflow-hidden bg-white pt-0 pb-0">
+        {/* Constrained container for text (tablet/desktop only) */}
+        <div className="hidden md:block mx-auto max-w-6xl px-5 sm:px-8">
+          <div className="grid items-center gap-2 md:grid-cols-12 md:gap-8 md:min-h-[220px]">
+            <div className="md:col-span-7 lg:col-span-6 z-10">
+              <h1 className="font-serif text-3xl sm:text-4xl lg:text-[46px] font-bold tracking-tight text-gray-950">
+                {classTitle}
+              </h1>
+            </div>
+            <div className="hidden md:block md:col-span-5 lg:col-span-6" />
+          </div>
         </div>
 
-        {/* Text Container aligned with max-w-6xl (tablet/desktop only) */}
-        <div className="hidden md:flex mx-auto h-full max-w-6xl items-center px-5 sm:px-8 relative z-10">
-          <div>
-            <h1 className="font-serif text-3xl sm:text-4xl lg:text-[46px] font-bold tracking-tight text-gray-950">
-              {classTitle}
-            </h1>
-            <p className="mt-2 text-sm sm:text-base text-gray-600 font-normal">
-              {classTagline}
-            </p>
+        {/* Right image: flush to top, bottom, and right edge of screen (tablet/desktop). */}
+        <div className="hidden md:block md:absolute md:top-0 md:bottom-0 md:right-0 md:w-[50%] lg:w-[48%] xl:w-[46%] md:h-full overflow-hidden">
+          <div className="relative h-full w-full overflow-hidden">
+            {heroImage ? (
+              <img
+                src={heroImage}
+                alt={classTitle}
+                className="h-full w-full object-cover object-[right_center] select-none pointer-events-none"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-brand-100 via-brand-200 to-brand-300" />
+            )}
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-2/5 sm:w-1/3 bg-gradient-to-r from-white via-white/80 to-transparent" />
           </div>
         </div>
 
         {/* Mobile: full-width image with text overlaid directly on it */}
         <div className="md:hidden relative h-[260px] sm:h-[300px] w-full overflow-hidden">
-          <img
-            src={heroImage}
-            alt={classTitle}
-            className="absolute inset-0 h-full w-full object-cover object-right"
-          />
+          {heroImage ? (
+            <img
+              src={heroImage}
+              alt={classTitle}
+              className="absolute inset-0 h-full w-full object-cover object-[right_center]"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-brand-100 via-brand-200 to-brand-300" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 px-5 pb-5 sm:px-8 sm:pb-6">
             <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-white">
               {classTitle}
             </h1>
-            <p className="mt-1.5 text-sm sm:text-base text-white/90">
-              {classTagline}
-            </p>
           </div>
         </div>
       </section>
@@ -157,12 +182,18 @@ export default async function ClassDetailPage({ params }) {
           {/* Left Column */}
           <div className="lg:col-span-7">
             {/* Main Class Photo */}
-            <div className="relative overflow-hidden rounded-2xl shadow-sm bg-gray-50">
-              <img
-                src={mainImage}
-                alt={classTitle}
-                className="w-full h-auto object-cover rounded-2xl"
-              />
+            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl shadow-sm bg-gray-50">
+              {mainImage ? (
+                <img
+                  src={mainImage}
+                  alt={classTitle}
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 text-sm text-gray-400">
+                  No image available
+                </div>
+              )}
             </div>
 
             {/* About the Class */}
@@ -180,6 +211,9 @@ export default async function ClassDetailPage({ params }) {
               <h2 className="font-serif text-2xl font-bold text-gray-900">
                 Syllabus
               </h2>
+              {syllabusItems.length === 0 && (
+                <p className="mt-3 text-sm text-gray-500">No syllabus added yet.</p>
+              )}
               <ul className="mt-4 space-y-3.5">
                 {syllabusItems.map((item, idx) => (
                   <li key={idx} className="flex items-center gap-3">
@@ -231,7 +265,7 @@ export default async function ClassDetailPage({ params }) {
                     Teacher
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-500 leading-tight mt-1">
-                    {teacher.name}
+                    {teacher?.name || "Not specified"}
                   </p>
                 </div>
               </div>
@@ -433,7 +467,7 @@ export default async function ClassDetailPage({ params }) {
 
             {/* Admission Button */}
             <AdmissionNowButton
-              selectedClass={musicClass.name || musicClass.slug}
+              selectedClass={musicClass.slug}
               className="mt-8 block w-full rounded-lg bg-brand-500 py-3.5 text-center text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md cursor-pointer"
             >
               Admission Now
@@ -444,35 +478,39 @@ export default async function ClassDetailPage({ params }) {
               <h3 className="font-serif text-2xl font-bold text-gray-900 mb-4">
                 Meet Your Teacher
               </h3>
-              <div className="flex items-center gap-5">
-                <div className="h-32 w-28 sm:h-36 sm:w-32 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                  <img
-                    src={
-                      teacher.photoUrl ||
-                      "/images/classes/teacher-amit-singh.png"
-                    }
-                    alt={teacher.name}
-                    className="h-full w-full object-cover"
-                  />
+              {teacher ? (
+                <div className="flex items-center gap-5">
+                  <div className="h-32 w-28 sm:h-36 sm:w-32 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                    {teacher.photoUrl ? (
+                      <img
+                        src={teacher.photoUrl}
+                        alt={teacher.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+                        No photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <h4 className="font-bold text-gray-900 text-base sm:text-lg">
+                      {teacher.name}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5 mb-3">
+                      {teacher.bio || "Not specified"}
+                    </p>
+                    <Link
+                      href="/teachers"
+                      className="rounded-lg border border-brand-500 px-4 py-1.5 text-xs font-semibold text-brand-500 transition-colors hover:bg-brand-50"
+                    >
+                      View Profile
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex flex-col items-start">
-                  <h4 className="font-bold text-gray-900 text-base sm:text-lg">
-                    {teacher.name}
-                  </h4>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                    {teacher.role || "Guitar Instructor"}
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-500 mb-3">
-                    {teacher.experience || "10+ Years Experience"}
-                  </p>
-                  <Link
-                    href="/teachers"
-                    className="rounded-lg border border-brand-500 px-4 py-1.5 text-xs font-semibold text-brand-500 transition-colors hover:bg-brand-50"
-                  >
-                    View Profile
-                  </Link>
-                </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500">No teacher assigned yet.</p>
+              )}
             </div>
           </div>
         </div>

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAdmission } from "@/context/AdmissionContext";
+import { apiGetSiteSettings } from "@/Api/public/siteSettingsApi";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -18,7 +19,15 @@ const NAV_LINKS = [
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settings, setSettings] = useState(null);
   const { openAdmission } = useAdmission();
+
+  useEffect(() => {
+    apiGetSiteSettings().then(setSettings);
+  }, []);
+
+  const businessName = settings?.businessName || "Synchrocity Music School";
+  const tagline = settings?.tagline || "Learn · Play · Grow";
 
   const handleAdmissionClick = () => {
     let currentClass = null;
@@ -33,21 +42,29 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
+      <nav className="flex w-full items-center justify-between px-5 py-2">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <svg
-            className="h-7 w-7 text-[#E11D48] fill-current shrink-0 transition-transform group-hover:scale-105"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-          </svg>
+        <Link href="/" className="flex items-center gap-2 group">
+          {settings?.logoUrl ? (
+            <img
+              src={settings.logoUrl}
+              alt={businessName}
+              className="h-14 w-14 rounded-lg object-contain shrink-0 transition-transform group-hover:scale-105"
+            />
+          ) : (
+            <svg
+              className="h-7 w-7 text-[#E11D48] fill-current shrink-0 transition-transform group-hover:scale-105"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+            </svg>
+          )}
           <div className="flex flex-col">
-            <span className="font-serif text-lg sm:text-[19px] font-bold text-gray-900 leading-tight">
-              Harmony Music School
+            <span className="font-serif text-sm sm:text-base font-bold text-gray-900 leading-tight">
+              {businessName}
             </span>
-            <span className="text-[11px] text-gray-400 font-normal tracking-wide leading-tight mt-0.5">
-              Learn &middot; Play &middot; Grow
+            <span className="text-[10px] text-gray-400 font-normal tracking-wide leading-tight mt-0.5">
+              {tagline}
             </span>
           </div>
         </Link>

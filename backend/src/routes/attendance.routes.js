@@ -12,7 +12,7 @@ const router = Router();
 router.get("/", requireAuth, listAttendance);
 router.post("/", requireAuth, markAttendance);
 router.post("/bulk", requireAuth, markBulkAttendance);
-router.get("/student/:studentId/stats", getStudentAttendanceStats);
+router.get("/student/:studentId/stats", requireAuth, getStudentAttendanceStats);
 
 
 export default router;

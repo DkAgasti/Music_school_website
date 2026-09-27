@@ -6,6 +6,7 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  studentLogin,
 } from "../controllers/auth.controller.js";
 
 const router = Router();
@@ -15,5 +16,6 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.get("/me", requireAuth, getMe);
 router.post("/change-password", requireAuth, changePassword);
+router.post("/student-login", studentLogin);
 
 export default router;
