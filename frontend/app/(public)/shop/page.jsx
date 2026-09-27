@@ -1,20 +1,13 @@
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import ShopCatalog from "@/components/public/ShopCatalog";
-import { apiGetProducts } from "@/Api/public/shopApi";
 
 export const metadata = {
   title: "Shop - Synchrocity Music School",
   description: "Quality instruments and books for your musical journey, from Synchrocity Music School.",
 };
 
-const PAGE_SIZE = 12;
-
-export default async function ShopPage() {
-  const res = await apiGetProducts({ active: true, page: 1, limit: PAGE_SIZE });
-  const initialProducts = res?.items || [];
-  const initialTotalPages = res?.totalPages || 1;
-
+export default function ShopPage() {
   return (
     <>
       <Navbar />
@@ -31,7 +24,7 @@ export default async function ShopPage() {
 
           {/* Filters + product grid + sidebar */}
           <div className="mt-8">
-            <ShopCatalog initialProducts={initialProducts} initialTotalPages={initialTotalPages} />
+            <ShopCatalog />
           </div>
 
           {/* Quote banner */}

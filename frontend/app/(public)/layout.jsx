@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import WhatsAppButton from "@/components/public/WhatsAppButton";
 import { AdmissionProvider } from "@/context/AdmissionContext";
 import AdmissionModal from "@/components/public/AdmissionModal";
@@ -5,8 +8,12 @@ import { apiGetSiteSettings } from "@/Api/public/siteSettingsApi";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-export default async function PublicLayout({ children }) {
-  const settings = await apiGetSiteSettings();
+export default function PublicLayout({ children }) {
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    apiGetSiteSettings().then(setSettings);
+  }, []);
 
   // Structured data so search engines understand this as a real business —
   // sourced from the same dynamic Business Settings every other public page

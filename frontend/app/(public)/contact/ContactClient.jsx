@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiSubmitEnquiry } from "@/Api/public/enquiryApi";
+import { apiGetSiteSettings } from "@/Api/public/siteSettingsApi";
 
-export default function ContactClient({ settings }) {
+export default function ContactClient() {
+  const [settings, setSettings] = useState(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -11,6 +13,10 @@ export default function ContactClient({ settings }) {
     message: "",
   });
   const [status, setStatus] = useState("idle");
+
+  useEffect(() => {
+    apiGetSiteSettings().then(setSettings);
+  }, []);
 
   const businessName = settings?.businessName || "Synchrocity Music School";
   const phone = settings?.phone || "+91 98765 43210";

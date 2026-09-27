@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TeacherCard from "@/components/public/TeacherCard";
 import TeacherProfileModal from "@/components/public/TeacherProfileModal";
+import { apiGetTeachers } from "@/Api/public/teacherApi";
 
-export default function TeachersClient({ teachers }) {
+export default function TeachersClient() {
+  const [teachers, setTeachers] = useState([]);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
+
+  useEffect(() => {
+    apiGetTeachers().then((res) => setTeachers(res || []));
+  }, []);
 
   return (
     <div className="w-full flex flex-col bg-[#FFF9FA] text-gray-900 antialiased">

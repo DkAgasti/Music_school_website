@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGetSiteSettings } from "@/Api/public/siteSettingsApi";
 
@@ -9,9 +12,13 @@ const QUICK_LINKS = [
   { href: "/gallery", label: "Gallery" },
 ];
 
-export default async function Footer({ theme = "light" }) {
+export default function Footer({ theme = "light" }) {
   const isLight = theme === "light";
-  const settings = (await apiGetSiteSettings()) || {};
+  const [settings, setSettings] = useState({});
+
+  useEffect(() => {
+    apiGetSiteSettings().then((res) => setSettings(res || {}));
+  }, []);
 
   const businessName = settings.businessName || "Synchrocity Music School";
   const tagline = settings.tagline || "Learn · Play · Grow";

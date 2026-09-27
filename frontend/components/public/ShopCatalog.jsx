@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ProductCard from "./ProductCard";
 import { apiGetProducts } from "@/Api/public/shopApi";
 
@@ -12,12 +12,20 @@ const FILTERS = [
   { key: "books", label: "Books" },
 ];
 
-export default function ShopCatalog({ initialProducts, initialTotalPages }) {
+export default function ShopCatalog() {
   const [activeFilter, setActiveFilter] = useState("all");
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    apiGetProducts({ active: true, page: 1, limit: PAGE_SIZE }).then((res) => {
+      if (!res) return;
+      setProducts(res.items || []);
+      setTotalPages(res.totalPages || 1);
+    });
+  }, []);
 
   async function handleFilterChange(filterKey) {
     setActiveFilter(filterKey);
